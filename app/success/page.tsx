@@ -5,6 +5,9 @@ import { useSearchParams } from 'next/navigation'
 import { CheckCircle } from 'lucide-react'
 import Link from 'next/link'
 
+// Force dynamic rendering since we use searchParams
+export const dynamic = 'force-dynamic'
+
 export default function SuccessPage() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get('session_id')

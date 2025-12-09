@@ -27,10 +27,14 @@ export async function handleFiles(
     await new Promise<void>(resolve => {
       const reader = new FileReader()
       reader.onload = (e) => {
-        const original = e.target.result as string
+        const original = (e.target?.result as string) || ''
+        if (!original) {
+          resolve()
+          return
+        }
         processImage(original, 2.5, 1.75, false, (processed) => {
           const newCard: Card = {
-            id: Date.now() + Math.random(),
+            id: String(Date.now() + Math.random()),
             originalFront: original,
             front: processed,
             back: null,

@@ -20,7 +20,11 @@ export function handleXMLFile(
   const reader = new FileReader()
 
   reader.onload = async (e) => {
-    const xmlText = e.target.result as string
+    const xmlText = (e.target?.result as string) || ''
+    if (!xmlText) {
+      setProcessing(false)
+      return
+    }
     const parser = new DOMParser()
     const xmlDoc = parser.parseFromString(xmlText, 'text/xml')
 

@@ -109,10 +109,12 @@ export async function processCardList(
 
       let cardData = null
       if (req.identifier.set && req.identifier.collector_number) {
+        const setCode = req.identifier.set.toLowerCase()
+        const collectorNumber = req.identifier.collector_number
         cardData = allFoundCards.find(
           c =>
-            c.set.toLowerCase() === req.identifier.set.toLowerCase() &&
-            c.collector_number === req.identifier.collector_number
+            c.set.toLowerCase() === setCode &&
+            c.collector_number === collectorNumber
         )
       } else if (req.identifier.name) {
         cardData = allFoundCards.find(
@@ -153,7 +155,7 @@ export async function processCardList(
               } else {
                 // Deck import mode: GROUP them!
                 const newCard: Card = {
-                  id: Date.now() + Math.random() + i, // Add i to ensure unique IDs
+                  id: String(Date.now() + Math.random() + i), // Add i to ensure unique IDs
                   originalFront: frontImgSrc!,
                   front: processedFront,
                   back: processedBack,

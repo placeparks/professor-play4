@@ -7,7 +7,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2023-10-16',
 })
 
 const supabase = createClient(
@@ -87,7 +87,7 @@ async function updateOrderAfterPayment(session: Stripe.Checkout.Session) {
           card_data: [],
           image_storage_path: session.metadata?.imageStoragePath || null,
           metadata: session.metadata || {}
-        })
+        } as any)
         .select()
         .single()
 
@@ -116,8 +116,6 @@ export async function POST(req: NextRequest) {
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
   }
-
-  let event: Stripe.Event
 
   let event: Stripe.Event
   

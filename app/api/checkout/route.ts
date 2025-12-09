@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import { v4 as uuidv4 } from 'uuid'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-  apiVersion: '2024-06-20',
+  apiVersion: '2023-10-16',
 })
 
 // Initialize Supabase client
@@ -215,7 +215,7 @@ async function saveOrderToDatabase(orderData: any) {
 
     const { data, error } = await supabase
       .from('orders')
-      .insert(insertData)
+      .insert(insertData as any)
       .select()
       .single()
 
@@ -224,8 +224,8 @@ async function saveOrderToDatabase(orderData: any) {
       throw error
     }
 
-    console.log('✅ Order saved to database:', data.id)
-    return data
+    console.log('✅ Order saved to database:', (data as any).id)
+    return data as any
   } catch (error) {
     console.error('❌ Failed to save order:', error)
     throw error
@@ -409,7 +409,7 @@ export async function POST(req: NextRequest) {
       cancel_url: `${origin}/#pricing-view`,
       customer_email: shippingAddress.email,
       shipping_address_collection: {
-        allowed_countries: ALLOWED_COUNTRIES,
+        allowed_countries: ALLOWED_COUNTRIES as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[],
       },
       metadata: metadata
     })
