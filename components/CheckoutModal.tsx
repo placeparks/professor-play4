@@ -65,14 +65,17 @@ export default function CheckoutModal() {
         if (backImg) backImages.push(backImg)
       })
 
-      // Prepare card data WITHOUT base64 images (we'll upload separately)
+      // Prepare card data WITHOUT base64 images (we'll upload separately and use URLs)
+      // Base64 images are included separately in allImages array
       const cardData = deck.map((card) => ({
         quantity: card.quantity || 1,
         trimMm: card.trimMm || 0,
         bleedMm: card.bleedMm || 2,
         hasBleed: card.hasBleed || false,
-        front: card.front || card.originalFront,
-        back: card.back || card.originalBack || globalBack.processed || globalBack.original
+        // Don't include base64 images here - they're in allImages array
+        // After upload, URLs will be added to cardData
+        front: null,
+        back: null
       }))
 
       // Combine all images in order: [front1, back1, front2, back2, ...]
@@ -94,8 +97,11 @@ export default function CheckoutModal() {
 
       let uploadedImageUrls: string[] = []
 
-      // If payload is too large (>4MB), upload images in chunks first
-      if (parseFloat(payloadSizeMB) > 4.0) {
+      // Always upload images first if we have any images (safer for Vercel's 4.5MB limit)
+      // This prevents 413 errors and ensures reliable checkout
+      const shouldUploadImagesFirst = allImages.length > 0
+      
+      if (shouldUploadImagesFirst) {
         console.log(`📤 Payload too large (${payloadSizeMB} MB), uploading images via backend first...`)
 
         // Generate temp order ID
@@ -195,11 +201,12 @@ export default function CheckoutModal() {
         })
 
         if (!response.ok) {
+          const errorText = await response.text()
           let error
           try {
-            error = await response.json()
+            error = JSON.parse(errorText)
           } catch {
-            error = { error: await response.text() }
+            error = { error: errorText }
           }
           throw new Error(error.error || error.message || 'Failed to create checkout session')
         }
@@ -222,11 +229,12 @@ export default function CheckoutModal() {
         })
 
         if (!response.ok) {
+          const errorText = await response.text()
           let error
           try {
-            error = await response.json()
+            error = JSON.parse(errorText)
           } catch {
-            error = { error: await response.text() }
+            error = { error: errorText }
           }
           throw new Error(error.error || error.message || 'Failed to create checkout session')
         }
