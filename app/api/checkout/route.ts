@@ -211,12 +211,28 @@ async function saveOrderToDatabase(orderData: any) {
       metadata: orderData.metadata || {}
     }
     
+    // Log finish/effects information for verification
+    const finishInfo = Array.isArray(insertData.card_data) 
+      ? insertData.card_data.map((card: any) => ({
+          finish: card.finish || 'standard',
+          hasSilverMask: !!card.silverMask,
+          hasMaskingColors: Array.isArray(card.maskingColors) && card.maskingColors.length > 0,
+          maskingTolerance: card.maskingTolerance || null
+        }))
+      : []
+    
+    // Log a sample of card_data to verify all fields are present
+    if (Array.isArray(insertData.card_data) && insertData.card_data.length > 0) {
+      console.log('📋 Sample card_data being saved:', JSON.stringify(insertData.card_data[0], null, 2))
+    }
+    
     console.log('💾 Inserting order data:', {
       stripe_session_id: insertData.stripe_session_id,
       customer_email: insertData.customer_email,
       quantity: insertData.quantity,
       card_images_count: Array.isArray(insertData.card_images) ? insertData.card_images.length : 0,
-      card_data_count: Array.isArray(insertData.card_data) ? insertData.card_data.length : 0
+      card_data_count: Array.isArray(insertData.card_data) ? insertData.card_data.length : 0,
+      finish_effects: finishInfo
     })
 
     const { data, error } = await supabase
@@ -290,6 +306,11 @@ export async function POST(req: NextRequest) {
     let allImageUrls: string[] = []
     let processedCardData = cardData || []
     
+    // Log incoming cardData to verify finish/effects are present
+    if (cardData && cardData.length > 0) {
+      console.log('📋 Incoming cardData sample:', JSON.stringify(cardData[0], null, 2))
+    }
+    
     // Check if images are already uploaded (URLs instead of base64)
     const imagesAlreadyUploaded = cardImages && cardImages.length > 0 && 
                                   typeof cardImages[0] === 'string' && 
@@ -302,6 +323,7 @@ export async function POST(req: NextRequest) {
       // Extract front and back URLs from cardData if available
       if (cardData && cardData.length > 0) {
         processedCardData = cardData.map((card: any, index: number) => {
+          // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
           const updatedCard = { ...card }
           
           // URLs are in order: [front1, back1, front2, back2, ...]
@@ -333,6 +355,7 @@ export async function POST(req: NextRequest) {
         // Extract front and back URLs from the uploaded URLs
         if (allImageUrls.length > 0) {
           processedCardData = cardData.map((card: any, index: number) => {
+            // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
             const updatedCard = { ...card }
             
             const frontUrlIndex = index * 2
