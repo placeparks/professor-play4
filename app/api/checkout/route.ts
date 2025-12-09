@@ -183,25 +183,23 @@ async function saveOrderToDatabase(orderData: any) {
   }
 
   try {
+    // Prepare insert data matching the database schema
     const insertData = {
       stripe_session_id: orderData.stripeSessionId,
       customer_email: orderData.customerEmail,
-      customer_name: orderData.customerName,
+      customer_name: orderData.customerName || null,
       customer_phone: orderData.customerPhone || null,
-      shipping_address: typeof orderData.shippingAddress === 'object' 
-        ? JSON.stringify(orderData.shippingAddress)
-        : orderData.shippingAddress,
-      billing_address: orderData.billingAddress 
-        ? (typeof orderData.billingAddress === 'object' 
-            ? JSON.stringify(orderData.billingAddress)
-            : orderData.billingAddress)
-        : null,
+      // shipping_address is JSONB - send as object, Supabase will handle conversion
+      shipping_address: orderData.shippingAddress || {},
+      // billing_address is JSONB - send as object or null
+      billing_address: orderData.billingAddress || null,
       total_amount_cents: orderData.totalAmountCents,
       currency: orderData.currency || 'usd',
       quantity: orderData.quantity,
       price_per_card: orderData.pricePerCard,
       shipping_cost_cents: orderData.shippingCostCents,
       shipping_country: orderData.shippingCountry,
+      // JSONB fields - send as arrays/objects
       card_images: orderData.card_images || [],
       card_images_base64: orderData.card_images_base64 || [],
       card_data: orderData.card_data || [],
@@ -212,6 +210,14 @@ async function saveOrderToDatabase(orderData: any) {
       payment_status: 'pending',
       metadata: orderData.metadata || {}
     }
+    
+    console.log('💾 Inserting order data:', {
+      stripe_session_id: insertData.stripe_session_id,
+      customer_email: insertData.customer_email,
+      quantity: insertData.quantity,
+      card_images_count: Array.isArray(insertData.card_images) ? insertData.card_images.length : 0,
+      card_data_count: Array.isArray(insertData.card_data) ? insertData.card_data.length : 0
+    })
 
     const { data, error } = await supabase
       .from('orders')
@@ -419,7 +425,8 @@ export async function POST(req: NextRequest) {
     // Save order to database (pending payment)
     if (supabase) {
       try {
-        await saveOrderToDatabase({
+        console.log('💾 Attempting to save order to database...')
+        const savedOrder = await saveOrderToDatabase({
           stripeSessionId: session.id,
           customerEmail: shippingAddress.email,
           customerName: shippingAddress.name,
@@ -451,10 +458,20 @@ export async function POST(req: NextRequest) {
             tempOrderId: tempOrderId
           }
         })
-      } catch (dbError) {
-        console.error('Failed to save order to database, but checkout session created:', dbError)
-        // Continue even if database save fails
+        console.log('✅ Order successfully saved to database:', savedOrder?.id)
+      } catch (dbError: any) {
+        console.error('❌ Failed to save order to database:', dbError)
+        console.error('Error details:', {
+          message: dbError?.message,
+          code: dbError?.code,
+          details: dbError?.details,
+          hint: dbError?.hint
+        })
+        // Continue even if database save fails - Stripe session is already created
+        // Order can be saved later via webhook
       }
+    } else {
+      console.warn('⚠️ Supabase not configured - order will not be saved to database')
     }
 
     return NextResponse.json({
