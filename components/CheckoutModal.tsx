@@ -72,6 +72,10 @@ export default function CheckoutModal() {
         trimMm: card.trimMm || 0,
         bleedMm: card.bleedMm || 2,
         hasBleed: card.hasBleed || false,
+        finish: card.finish || 'standard', // Include finish/effects (standard, rainbow, gloss, silver, etc.)
+        silverMask: card.silverMask || null, // Include silver mask if available
+        maskingColors: card.maskingColors || [], // Include masking colors if available
+        maskingTolerance: card.maskingTolerance || null, // Include masking tolerance if available
         // Don't include base64 images here - they're in allImages array
         // After upload, URLs will be added to cardData
         front: null,
