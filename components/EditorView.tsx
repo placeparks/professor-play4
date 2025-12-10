@@ -188,9 +188,17 @@ export default function EditorView() {
 
         {currentCard && currentStep === 1 && (
           <div className="mt-4 sm:mt-6 flex justify-center gap-3 z-20">
-            <button className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-sm flex items-center gap-2 transition-colors border border-blue-700/20 touch-manipulation min-h-[44px]">
-              <Image className="w-4 h-4" /> Change Art
-            </button>
+            {currentCard.printsUri && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  window.dispatchEvent(new CustomEvent('openVersionsModal', { detail: { index: currentCardIndex } }))
+                }}
+                className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-sm flex items-center gap-2 transition-colors border border-blue-700/20 touch-manipulation min-h-[44px]"
+              >
+                <Image className="w-4 h-4" /> Change Art
+              </button>
+            )}
           </div>
         )}
       </div>
