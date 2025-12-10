@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ImagePlus, List, FileCode, Crop, Copy, ArrowRight } from 'lucide-react'
+import { ImagePlus, List, FileCode, Crop, Copy, ArrowRight, Scissors } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
 import { processImage } from '@/utils/imageProcessing'
 import { handleFiles as processFiles } from '@/utils/fileHandling'
@@ -150,14 +150,183 @@ function PrintPrepPanel() {
 
   useEffect(() => {
     if (target) {
-      setTrimMm(target.trimMm || 2.5)
-      setBleedMm(target.bleedMm !== undefined ? target.bleedMm : 1.75)
-      setHasBleed(target.hasBleed || false)
+      // Only sync if values are actually different to avoid resetting during updates
+      const targetTrim = target.trimMm || 2.5
+      const targetBleed = target.bleedMm !== undefined ? target.bleedMm : 1.75
+      const targetHasBleed = target.hasBleed || false
+      
+      if (Math.abs(targetTrim - trimMm) > 0.01) {
+        setTrimMm(targetTrim)
+      }
+      if (Math.abs(targetBleed - bleedMm) > 0.01) {
+        setBleedMm(targetBleed)
+      }
+      if (targetHasBleed !== hasBleed) {
+        setHasBleed(targetHasBleed)
+      }
     }
   }, [target, currentStep, currentCardIndex])
 
-  const updatePrepSettings = () => {
-    // Implementation will be added
+  // Update cut line overlay visually (without processing image)
+  const updateCutLineOverlay = (newTrim?: number, newBleedMm?: number, newHasBleed?: boolean) => {
+    const finalTrim = newTrim !== undefined ? newTrim : trimMm
+    const finalBleedMm = newBleedMm !== undefined ? newBleedMm : bleedMm
+    const finalHasBleed = newHasBleed !== undefined ? newHasBleed : hasBleed
+
+    // Update state to trigger cut line overlay update in EditorView
+    if (currentStep === 2) {
+      setGlobalBack(prev => ({
+        ...prev,
+        trimMm: finalTrim,
+        bleedMm: finalBleedMm,
+        hasBleed: finalHasBleed
+      }))
+    } else {
+      if (currentCardIndex < 0) return
+      const cardIdx = currentCardIndex
+      setDeck(prevDeck => {
+        if (cardIdx >= prevDeck.length || !prevDeck[cardIdx]) return prevDeck
+        const newDeck = [...prevDeck]
+        newDeck[cardIdx] = {
+          ...newDeck[cardIdx],
+          trimMm: finalTrim,
+          bleedMm: finalBleedMm,
+          hasBleed: finalHasBleed
+        }
+        return newDeck
+      })
+    }
+  }
+
+  // Process image with current settings (called when bleed is toggled)
+  const updatePrepSettings = (source?: 'slider' | 'input', newTrim?: number, newBleedMm?: number, newHasBleed?: boolean) => {
+    // Use provided values or fall back to state
+    const finalTrim = newTrim !== undefined ? newTrim : trimMm
+    const finalBleedMm = newBleedMm !== undefined ? newBleedMm : bleedMm
+    const finalHasBleed = newHasBleed !== undefined ? newHasBleed : hasBleed
+
+    if (currentStep === 2) {
+      // Update global back
+      setGlobalBack(prev => {
+        const originalSrc = prev.original
+        if (!originalSrc) return prev
+
+        const newBack = {
+          ...prev,
+          trimMm: finalTrim,
+          bleedMm: finalBleedMm,
+          hasBleed: finalHasBleed
+        }
+
+        // Process image and update when done
+        processImage(originalSrc, finalTrim, finalBleedMm, finalHasBleed, (processed) => {
+          setGlobalBack(prevBack => ({ ...prevBack, processed, trimMm: finalTrim, bleedMm: finalBleedMm, hasBleed: finalHasBleed }))
+        })
+
+        return newBack
+      })
+    } else {
+      // Update current card
+      if (currentCardIndex < 0) return
+
+      // Capture currentCardIndex to avoid closure issues
+      const cardIdx = currentCardIndex
+
+      setDeck(prevDeck => {
+        if (cardIdx >= prevDeck.length || !prevDeck[cardIdx]) return prevDeck
+
+        const card = prevDeck[cardIdx]
+        const originalSrc = card.originalFront
+        if (!originalSrc) return prevDeck
+
+        const updatedCard = {
+          ...card,
+          trimMm: finalTrim,
+          bleedMm: finalBleedMm,
+          hasBleed: finalHasBleed
+        }
+
+        // Process front image
+        processImage(originalSrc, finalTrim, finalBleedMm, finalHasBleed, (processed) => {
+          setDeck(prev => {
+            const newDeck = [...prev]
+            if (cardIdx < newDeck.length) {
+              newDeck[cardIdx] = { 
+                ...newDeck[cardIdx], 
+                front: processed,
+                trimMm: finalTrim,
+                bleedMm: finalBleedMm,
+                hasBleed: finalHasBleed
+              }
+            }
+            return newDeck
+          })
+        })
+
+        // Also process back if it exists
+        if (card.originalBack) {
+          processImage(card.originalBack, finalTrim, finalBleedMm, finalHasBleed, (processedBack) => {
+            setDeck(prev => {
+              const newDeck = [...prev]
+              if (cardIdx < newDeck.length) {
+                newDeck[cardIdx] = { 
+                  ...newDeck[cardIdx], 
+                  back: processedBack,
+                  trimMm: finalTrim,
+                  bleedMm: finalBleedMm,
+                  hasBleed: finalHasBleed
+                }
+              }
+              return newDeck
+            })
+          })
+        }
+
+        // Return updated card immediately (without processed image, which will come in callback)
+        const newDeck = [...prevDeck]
+        newDeck[cardIdx] = updatedCard
+        return newDeck
+      })
+    }
+  }
+
+  const toggleBleed = () => {
+    const newHasBleed = !hasBleed
+    setHasBleed(newHasBleed)
+    // Update cut line overlay first
+    updateCutLineOverlay(undefined, undefined, newHasBleed)
+    // Then process the image with the new bleed state
+    updatePrepSettings(undefined, undefined, undefined, newHasBleed)
+  }
+
+  const applyPrepToAll = async () => {
+    const promises = deck.map(async (card) => {
+      const updatedCard = {
+        ...card,
+        trimMm,
+        bleedMm,
+        hasBleed
+      }
+
+      const pFront = card.originalFront ? new Promise<string | null>((resolve) => {
+        processImage(card.originalFront!, trimMm, bleedMm, hasBleed, resolve)
+      }) : Promise.resolve(null)
+
+      const pBack = card.originalBack ? new Promise<string | null>((resolve) => {
+        processImage(card.originalBack!, trimMm, bleedMm, hasBleed, resolve)
+      }) : Promise.resolve(null)
+
+      const [processedFront, processedBack] = await Promise.all([pFront, pBack])
+
+      return {
+        ...updatedCard,
+        front: processedFront || card.front,
+        back: processedBack || card.back
+      }
+    })
+
+    const updatedDeck = await Promise.all(promises)
+    setDeck(updatedDeck)
   }
 
   return (
@@ -178,7 +347,12 @@ function PrintPrepPanel() {
             max="5"
             step="0.25"
             value={trimMm}
-            onChange={(e) => setTrimMm(parseFloat(e.target.value))}
+            onChange={(e) => {
+              const newTrim = parseFloat(e.target.value)
+              setTrimMm(newTrim)
+              // Update cut line overlay visually without processing image
+              updateCutLineOverlay(newTrim)
+            }}
             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
           />
           <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Adjusts bleed start point (removes white corners)</p>
@@ -189,22 +363,43 @@ function PrintPrepPanel() {
             <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Bleed Adjustment</label>
             <div className="flex items-center gap-1">
               <input
+                id="bleed-fine-tune"
                 type="number"
                 step="0.05"
                 value={bleedMm}
-                onChange={(e) => setBleedMm(parseFloat(e.target.value))}
+                onChange={(e) => {
+                  const newBleed = parseFloat(e.target.value)
+                  setBleedMm(newBleed)
+                  // Sync slider
+                  const bleedSlider = document.getElementById('bleed-slider') as HTMLInputElement
+                  if (bleedSlider) {
+                    const clampedValue = Math.max(-4, Math.min(4, newBleed))
+                    bleedSlider.value = clampedValue.toString()
+                  }
+                  // Update cut line overlay visually without processing image
+                  updateCutLineOverlay(undefined, newBleed)
+                }}
                 className="w-16 text-right text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500 text-slate-700 dark:text-slate-300"
               />
               <span className="text-[10px] text-slate-400 font-mono">mm</span>
             </div>
           </div>
           <input
+            id="bleed-slider"
             type="range"
             min="-4"
             max="4"
             step="0.25"
             value={bleedMm}
-            onChange={(e) => setBleedMm(parseFloat(e.target.value))}
+            onChange={(e) => {
+              const newBleed = parseFloat(e.target.value)
+              setBleedMm(newBleed)
+              // Sync input field
+              const bleedInput = document.getElementById('bleed-fine-tune') as HTMLInputElement
+              if (bleedInput) bleedInput.value = newBleed.toString()
+              // Update cut line overlay visually without processing image
+              updateCutLineOverlay(undefined, newBleed)
+            }}
             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
           />
           <div className="flex justify-between text-[9px] text-slate-400 font-medium px-1 mt-1">
@@ -215,7 +410,7 @@ function PrintPrepPanel() {
         </div>
 
         <button
-          onClick={() => setHasBleed(!hasBleed)}
+          onClick={toggleBleed}
           className={`w-full border py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 ${
             hasBleed
               ? 'bg-blue-600 text-white border-blue-600'
@@ -233,10 +428,19 @@ function PrintPrepPanel() {
               <strong>1.75mm bleed</strong> extension past the cut line for reliable borderless printing.
             </p>
           </div>
+          <div className="flex gap-2 items-start pt-1 border-t border-blue-200 dark:border-blue-800">
+            <Scissors className="w-3.5 h-3.5 text-orange-500 shrink-0 mt-0.5" />
+            <p className="text-[10px] leading-tight text-slate-600 dark:text-slate-400">
+              <strong className="text-slate-800 dark:text-slate-200">MPCFill (-1.25mm):</strong> These images often have large bleeds. Set adjustment to <strong>-1.25mm</strong> to trim them to our spec.
+            </p>
+          </div>
         </div>
 
         <div className="pt-2 border-t border-slate-200 dark:border-slate-700 mt-2">
-          <button className="w-full bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm">
+          <button 
+            onClick={applyPrepToAll}
+            className="w-full bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
+          >
             <Copy className="w-3 h-3" /> Apply to All Cards
           </button>
           <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-1">

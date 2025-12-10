@@ -183,25 +183,23 @@ async function saveOrderToDatabase(orderData: any) {
   }
 
   try {
+    // Prepare insert data matching the database schema
     const insertData = {
       stripe_session_id: orderData.stripeSessionId,
       customer_email: orderData.customerEmail,
-      customer_name: orderData.customerName,
+      customer_name: orderData.customerName || null,
       customer_phone: orderData.customerPhone || null,
-      shipping_address: typeof orderData.shippingAddress === 'object' 
-        ? JSON.stringify(orderData.shippingAddress)
-        : orderData.shippingAddress,
-      billing_address: orderData.billingAddress 
-        ? (typeof orderData.billingAddress === 'object' 
-            ? JSON.stringify(orderData.billingAddress)
-            : orderData.billingAddress)
-        : null,
+      // shipping_address is JSONB - send as object, Supabase will handle conversion
+      shipping_address: orderData.shippingAddress || {},
+      // billing_address is JSONB - send as object or null
+      billing_address: orderData.billingAddress || null,
       total_amount_cents: orderData.totalAmountCents,
       currency: orderData.currency || 'usd',
       quantity: orderData.quantity,
       price_per_card: orderData.pricePerCard,
       shipping_cost_cents: orderData.shippingCostCents,
       shipping_country: orderData.shippingCountry,
+      // JSONB fields - send as arrays/objects
       card_images: orderData.card_images || [],
       card_images_base64: orderData.card_images_base64 || [],
       card_data: orderData.card_data || [],
@@ -212,6 +210,30 @@ async function saveOrderToDatabase(orderData: any) {
       payment_status: 'pending',
       metadata: orderData.metadata || {}
     }
+    
+    // Log finish/effects information for verification
+    const finishInfo = Array.isArray(insertData.card_data) 
+      ? insertData.card_data.map((card: any) => ({
+          finish: card.finish || 'standard',
+          hasSilverMask: !!card.silverMask,
+          hasMaskingColors: Array.isArray(card.maskingColors) && card.maskingColors.length > 0,
+          maskingTolerance: card.maskingTolerance || null
+        }))
+      : []
+    
+    // Log a sample of card_data to verify all fields are present
+    if (Array.isArray(insertData.card_data) && insertData.card_data.length > 0) {
+      console.log('📋 Sample card_data being saved:', JSON.stringify(insertData.card_data[0], null, 2))
+    }
+    
+    console.log('💾 Inserting order data:', {
+      stripe_session_id: insertData.stripe_session_id,
+      customer_email: insertData.customer_email,
+      quantity: insertData.quantity,
+      card_images_count: Array.isArray(insertData.card_images) ? insertData.card_images.length : 0,
+      card_data_count: Array.isArray(insertData.card_data) ? insertData.card_data.length : 0,
+      finish_effects: finishInfo
+    })
 
     const { data, error } = await supabase
       .from('orders')
@@ -284,6 +306,11 @@ export async function POST(req: NextRequest) {
     let allImageUrls: string[] = []
     let processedCardData = cardData || []
     
+    // Log incoming cardData to verify finish/effects are present
+    if (cardData && cardData.length > 0) {
+      console.log('📋 Incoming cardData sample:', JSON.stringify(cardData[0], null, 2))
+    }
+    
     // Check if images are already uploaded (URLs instead of base64)
     const imagesAlreadyUploaded = cardImages && cardImages.length > 0 && 
                                   typeof cardImages[0] === 'string' && 
@@ -296,6 +323,7 @@ export async function POST(req: NextRequest) {
       // Extract front and back URLs from cardData if available
       if (cardData && cardData.length > 0) {
         processedCardData = cardData.map((card: any, index: number) => {
+          // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
           const updatedCard = { ...card }
           
           // URLs are in order: [front1, back1, front2, back2, ...]
@@ -327,6 +355,7 @@ export async function POST(req: NextRequest) {
         // Extract front and back URLs from the uploaded URLs
         if (allImageUrls.length > 0) {
           processedCardData = cardData.map((card: any, index: number) => {
+            // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
             const updatedCard = { ...card }
             
             const frontUrlIndex = index * 2
@@ -419,7 +448,8 @@ export async function POST(req: NextRequest) {
     // Save order to database (pending payment)
     if (supabase) {
       try {
-        await saveOrderToDatabase({
+        console.log('💾 Attempting to save order to database...')
+        const savedOrder = await saveOrderToDatabase({
           stripeSessionId: session.id,
           customerEmail: shippingAddress.email,
           customerName: shippingAddress.name,
@@ -451,10 +481,20 @@ export async function POST(req: NextRequest) {
             tempOrderId: tempOrderId
           }
         })
-      } catch (dbError) {
-        console.error('Failed to save order to database, but checkout session created:', dbError)
-        // Continue even if database save fails
+        console.log('✅ Order successfully saved to database:', savedOrder?.id)
+      } catch (dbError: any) {
+        console.error('❌ Failed to save order to database:', dbError)
+        console.error('Error details:', {
+          message: dbError?.message,
+          code: dbError?.code,
+          details: dbError?.details,
+          hint: dbError?.hint
+        })
+        // Continue even if database save fails - Stripe session is already created
+        // Order can be saved later via webhook
       }
+    } else {
+      console.warn('⚠️ Supabase not configured - order will not be saved to database')
     }
 
     return NextResponse.json({

@@ -36,7 +36,7 @@ export default function CheckoutModal() {
     return country === 'US' ? 6.95 : 24.95
   }
 
-  const stats = updateDeckStats(deck)
+  // Calculate prices using the same logic as updateDeckStats
   const quantity = deck.reduce((acc, card) => acc + (card.quantity || 1), 0)
   
   let pricePerCard = 0.35
@@ -46,9 +46,27 @@ export default function CheckoutModal() {
     pricePerCard = 0.30
   }
 
+  // Calculate finish surcharges (same logic as updateDeckStats)
+  let finishSurcharge = 0
+  deck.forEach(card => {
+    const qty = card.quantity || 1
+    if (card.finish && card.finish !== 'standard') {
+      if (card.finish.includes('silver')) {
+        let cardCost = 3.50
+        if (card.finish.includes('rainbow') || card.finish.includes('gloss')) {
+          cardCost += 2.50 // Total 6.00 for silver + rainbow/gloss
+        }
+        finishSurcharge += (cardCost * qty)
+      } else {
+        // Just Rainbow or Gloss
+        finishSurcharge += (2.50 * qty)
+      }
+    }
+  })
+
   const cardsTotal = quantity * pricePerCard
   const shippingCost = getShippingCost(formData.country)
-  const total = cardsTotal + shippingCost
+  const total = cardsTotal + finishSurcharge + shippingCost
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -65,14 +83,21 @@ export default function CheckoutModal() {
         if (backImg) backImages.push(backImg)
       })
 
-      // Prepare card data WITHOUT base64 images (we'll upload separately)
+      // Prepare card data WITHOUT base64 images (we'll upload separately and use URLs)
+      // Base64 images are included separately in allImages array
       const cardData = deck.map((card) => ({
         quantity: card.quantity || 1,
         trimMm: card.trimMm || 0,
         bleedMm: card.bleedMm || 2,
         hasBleed: card.hasBleed || false,
-        front: card.front || card.originalFront,
-        back: card.back || card.originalBack || globalBack.processed || globalBack.original
+        finish: card.finish || 'standard', // Include finish/effects (standard, rainbow, gloss, silver, etc.)
+        silverMask: card.silverMask || null, // Include silver mask if available
+        maskingColors: card.maskingColors || [], // Include masking colors if available
+        maskingTolerance: card.maskingTolerance || null, // Include masking tolerance if available
+        // Don't include base64 images here - they're in allImages array
+        // After upload, URLs will be added to cardData
+        front: null,
+        back: null
       }))
 
       // Combine all images in order: [front1, back1, front2, back2, ...]
@@ -94,8 +119,11 @@ export default function CheckoutModal() {
 
       let uploadedImageUrls: string[] = []
 
-      // If payload is too large (>4MB), upload images in chunks first
-      if (parseFloat(payloadSizeMB) > 4.0) {
+      // Always upload images first if we have any images (safer for Vercel's 4.5MB limit)
+      // This prevents 413 errors and ensures reliable checkout
+      const shouldUploadImagesFirst = allImages.length > 0
+      
+      if (shouldUploadImagesFirst) {
         console.log(`📤 Payload too large (${payloadSizeMB} MB), uploading images via backend first...`)
 
         // Generate temp order ID
@@ -195,11 +223,12 @@ export default function CheckoutModal() {
         })
 
         if (!response.ok) {
+          const errorText = await response.text()
           let error
           try {
-            error = await response.json()
+            error = JSON.parse(errorText)
           } catch {
-            error = { error: await response.text() }
+            error = { error: errorText }
           }
           throw new Error(error.error || error.message || 'Failed to create checkout session')
         }
@@ -222,11 +251,12 @@ export default function CheckoutModal() {
         })
 
         if (!response.ok) {
+          const errorText = await response.text()
           let error
           try {
-            error = await response.json()
+            error = JSON.parse(errorText)
           } catch {
-            error = { error: await response.text() }
+            error = { error: errorText }
           }
           throw new Error(error.error || error.message || 'Failed to create checkout session')
         }
@@ -275,6 +305,12 @@ export default function CheckoutModal() {
                 <span className="text-slate-600 dark:text-slate-400">{quantity} cards</span>
                 <span className="font-semibold text-slate-800 dark:text-white">${cardsTotal.toFixed(2)}</span>
               </div>
+              {finishSurcharge > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Premium Finishes</span>
+                  <span className="font-semibold text-slate-800 dark:text-white">${finishSurcharge.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-slate-600 dark:text-slate-400">Shipping</span>
                 <span className="font-semibold text-slate-800 dark:text-white">${shippingCost.toFixed(2)}</span>

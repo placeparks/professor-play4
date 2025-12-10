@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight, Minus, Plus, Image } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
+import { useEffect, useRef } from 'react'
 
 export default function EditorView() {
   const {
@@ -15,6 +16,55 @@ export default function EditorView() {
 
   const currentCard = currentStep === 2 ? null : deck[currentCardIndex]
   const imageToShow = currentStep === 2 ? globalBack.processed : currentCard?.front
+  const cutLineRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLDivElement>(null)
+
+  // Update cut line overlay based on bleed settings
+  useEffect(() => {
+    const cutLine = cutLineRef.current
+    const canvas = canvasRef.current
+    if (!cutLine || !canvas) return
+
+    const target = currentStep === 2 ? globalBack : currentCard
+    if (!target) {
+      cutLine.classList.add('hidden')
+      return
+    }
+
+    const bleedMm = target.bleedMm !== undefined ? target.bleedMm : 1.75
+    const hasBleed = target.hasBleed || false
+
+    // Show cut line when bleed is enabled
+    if (hasBleed) {
+      cutLine.classList.remove('hidden')
+      
+      // Calculate cut line position based on bleed amount
+      // Base dimensions: 63mm x 88mm (standard TCG size)
+      const baseW = 63
+      const baseH = 88
+      const activeBleed = bleedMm
+      
+      // Total canvas size including bleed
+      const totalW = baseW + (2 * activeBleed)
+      const totalH = baseH + (2 * activeBleed)
+      
+      // Calculate inset percentage for cut line
+      const cutInsetX = (activeBleed / totalW) * 100
+      const cutInsetY = (activeBleed / totalH) * 100
+      
+      cutLine.style.left = `${cutInsetX}%`
+      cutLine.style.right = `${cutInsetX}%`
+      cutLine.style.top = `${cutInsetY}%`
+      cutLine.style.bottom = `${cutInsetY}%`
+      
+      // Update canvas aspect ratio
+      canvas.style.aspectRatio = `${totalW} / ${totalH}`
+    } else {
+      cutLine.classList.add('hidden')
+      // Reset aspect ratio when bleed is disabled
+      canvas.style.aspectRatio = '63 / 88'
+    }
+  }, [currentStep, currentCardIndex, currentCard?.bleedMm, currentCard?.hasBleed, globalBack.bleedMm, globalBack.hasBleed])
 
   const nextCard = () => {
     if (deck.length === 0) return
@@ -102,12 +152,14 @@ export default function EditorView() {
         )}
 
         <div
+          ref={canvasRef}
           id="card-canvas"
           className="h-[280px] sm:h-[350px] md:h-[420px] w-auto max-w-[90vw] sm:max-w-full bg-white dark:bg-slate-800 shadow-2xl rounded-xl relative border border-slate-200 dark:border-slate-700 transition-all duration-200 transform origin-center"
         >
           <div
+            ref={cutLineRef}
             id="cut-line"
-            className="absolute inset-0 border-2 border-cyan-500 border-dotted pointer-events-none z-40 hidden opacity-90"
+            className="absolute border-2 border-cyan-500 border-dotted pointer-events-none z-40 hidden opacity-90"
           >
             <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] text-cyan-600 dark:text-cyan-400 font-bold font-mono bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded shadow border border-cyan-100 dark:border-cyan-900 whitespace-nowrap">
               Cut Line (63x88mm)
@@ -117,6 +169,7 @@ export default function EditorView() {
           <div className="w-full h-full rounded-lg overflow-hidden relative bg-white dark:bg-slate-800 group">
             {imageToShow ? (
               <img
+                key={`${currentStep}-${currentCardIndex}-${currentCard?.trimMm}-${currentCard?.bleedMm}-${currentCard?.hasBleed}-${globalBack.trimMm}-${globalBack.bleedMm}-${globalBack.hasBleed}`}
                 src={imageToShow}
                 alt="Card"
                 className="w-full h-full object-cover"

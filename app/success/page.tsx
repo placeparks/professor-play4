@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { CheckCircle } from 'lucide-react'
 import Link from 'next/link'
@@ -8,7 +8,7 @@ import Link from 'next/link'
 // Force dynamic rendering since we use searchParams
 export const dynamic = 'force-dynamic'
 
-export default function SuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams()
   const sessionId = searchParams.get('session_id')
   const [loading, setLoading] = useState(true)
@@ -50,6 +50,23 @@ export default function SuccessPage() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-slate-100 dark:bg-slate-950 flex items-center justify-center p-4 sm:p-6">
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl max-w-md w-full p-6 sm:p-8 text-center">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-600 mb-4"></div>
+            <p className="text-sm sm:text-base text-slate-600 dark:text-slate-400">Loading...</p>
+          </div>
+        </div>
+      </div>
+    }>
+      <SuccessContent />
+    </Suspense>
   )
 }
 

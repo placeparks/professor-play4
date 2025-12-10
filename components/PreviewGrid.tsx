@@ -115,7 +115,80 @@ export default function PreviewGrid() {
                       const newFinish = e.target.value
                       setDeck(prev => {
                         const newDeck = [...prev]
-                        newDeck[groupIndex] = { ...newDeck[groupIndex], finish: newFinish }
+                        const group = { ...newDeck[groupIndex] } // Create a copy to avoid mutation
+                        
+                        // If selecting Silver, we need to open inspector to configure it
+                        if (newFinish.includes('silver')) {
+                          if (group.quantity > 1) {
+                            // Split group first - reduce original quantity
+                            const updatedGroup = { ...group, quantity: group.quantity - 1 }
+                            const newCard = {
+                              ...group,
+                              id: Date.now() + Math.random(),
+                              quantity: 1,
+                              finish: newFinish,
+                              // Reset any existing mask data since it's a new config
+                              silverMask: null,
+                              maskingColors: [],
+                              maskingTolerance: 15,
+                            }
+                            // Update the original group and insert new card right after it
+                            newDeck[groupIndex] = updatedGroup
+                            newDeck.splice(groupIndex + 1, 0, newCard)
+                            // Open inspector for the NEW card (index + 1)
+                            setTimeout(() => {
+                              setInspectorIndex(groupIndex + 1)
+                            }, 100)
+                          } else {
+                            // Already a single card, just update finish
+                            const updatedGroup = {
+                              ...group,
+                              finish: newFinish,
+                              silverMask: group.silverMask || null,
+                              maskingColors: group.maskingColors || [],
+                              maskingTolerance: group.maskingTolerance || 15,
+                            }
+                            newDeck[groupIndex] = updatedGroup
+                            setTimeout(() => {
+                              setInspectorIndex(groupIndex)
+                            }, 100)
+                          }
+                        } else {
+                          // Standard/Rainbow/Gloss logic
+                          if (group.quantity > 1) {
+                            // Split group - reduce original quantity
+                            const updatedGroup = { ...group, quantity: group.quantity - 1 }
+                            const newCard = {
+                              ...group,
+                              id: Date.now() + Math.random(),
+                              quantity: 1,
+                              finish: newFinish,
+                            }
+                            // Clear silver mask data if switching away from silver
+                            if (group.finish && group.finish.includes('silver') && !newFinish.includes('silver')) {
+                              newCard.silverMask = null
+                              newCard.maskingColors = []
+                              newCard.maskingTolerance = 15
+                            }
+                            // Update the original group and insert new card right after it
+                            newDeck[groupIndex] = updatedGroup
+                            newDeck.splice(groupIndex + 1, 0, newCard)
+                          } else {
+                            // Already a single card, just update finish
+                            const updatedGroup = {
+                              ...group,
+                              finish: newFinish,
+                            }
+                            // Clear silver mask data if switching away from silver
+                            if (group.finish && group.finish.includes('silver') && !newFinish.includes('silver')) {
+                              updatedGroup.silverMask = null
+                              updatedGroup.maskingColors = []
+                              updatedGroup.maskingTolerance = 15
+                            }
+                            newDeck[groupIndex] = updatedGroup
+                          }
+                        }
+                        
                         return newDeck
                       })
                     }}

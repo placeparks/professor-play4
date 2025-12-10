@@ -6,6 +6,7 @@ import Navigation from '@/components/Navigation'
 import LandingView from '@/components/LandingView'
 import HowItWorksView from '@/components/HowItWorksView'
 import PricingView from '@/components/PricingView'
+import WhyUsView from '@/components/WhyUsView'
 import DesignStepper from '@/components/DesignStepper'
 import InspectorModal from '@/components/InspectorModal'
 import VersionsModal from '@/components/VersionsModal'
@@ -37,6 +38,11 @@ export default function Home() {
     setShowDesignStepper(false)
   }
 
+  const showWhyUs = () => {
+    setCurrentView('why-us')
+    setShowDesignStepper(false)
+  }
+
   return (
     <AppProvider>
       <main className="flex-grow relative">
@@ -47,6 +53,7 @@ export default function Home() {
           onShowLanding={showLanding}
           onShowHowItWorks={showHowItWorks}
           onShowPricing={showPricing}
+          onShowWhyUs={showWhyUs}
         />
 
         {currentView === 'landing' && !showDesignStepper && (
@@ -59,6 +66,10 @@ export default function Home() {
 
         {currentView === 'pricing' && !showDesignStepper && (
           <PricingView onStartDesign={startDesign} />
+        )}
+
+        {currentView === 'why-us' && !showDesignStepper && (
+          <WhyUsView onStartDesign={startDesign} />
         )}
 
         {showDesignStepper && (

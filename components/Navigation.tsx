@@ -11,6 +11,7 @@ interface NavigationProps {
   onShowLanding: () => void
   onShowHowItWorks: () => void
   onShowPricing: () => void
+  onShowWhyUs: () => void
 }
 
 export default function Navigation({
@@ -20,6 +21,7 @@ export default function Navigation({
   onShowLanding,
   onShowHowItWorks,
   onShowPricing,
+  onShowWhyUs,
 }: NavigationProps) {
   const { isDarkMode, toggleTheme } = useApp()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -63,6 +65,13 @@ export default function Navigation({
             className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
           >
             Pricing
+          </a>
+          <a 
+            href="#" 
+            onClick={(e) => { e.preventDefault(); onShowWhyUs(); }} 
+            className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
+          >
+            Why Us
           </a>
         </div>
 
@@ -131,6 +140,12 @@ export default function Navigation({
               className="w-full text-left px-4 py-3 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors touch-manipulation font-medium"
             >
               Pricing
+            </button>
+            <button
+              onClick={() => handleMobileNavClick(onShowWhyUs)}
+              className="w-full text-left px-4 py-3 rounded-lg text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors touch-manipulation font-medium"
+            >
+              Why Us
             </button>
             <button
               onClick={() => handleMobileNavClick(onStartDesign)}
