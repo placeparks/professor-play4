@@ -300,20 +300,29 @@ function PrintPrepPanel() {
   }
 
   const applyPrepToAll = async () => {
+    if (deck.length === 0) return
+
+    // Capture current state values at the time of execution
+    // These should be the latest values when the button is clicked
+    const currentTrim = trimMm
+    const currentBleed = bleedMm
+    const currentHasBleed = hasBleed
+
+    // Process all cards in parallel
     const promises = deck.map(async (card) => {
       const updatedCard = {
         ...card,
-        trimMm,
-        bleedMm,
-        hasBleed
+        trimMm: currentTrim,
+        bleedMm: currentBleed,
+        hasBleed: currentHasBleed
       }
 
       const pFront = card.originalFront ? new Promise<string | null>((resolve) => {
-        processImage(card.originalFront!, trimMm, bleedMm, hasBleed, resolve)
+        processImage(card.originalFront!, currentTrim, currentBleed, currentHasBleed, resolve)
       }) : Promise.resolve(null)
 
       const pBack = card.originalBack ? new Promise<string | null>((resolve) => {
-        processImage(card.originalBack!, trimMm, bleedMm, hasBleed, resolve)
+        processImage(card.originalBack!, currentTrim, currentBleed, currentHasBleed, resolve)
       }) : Promise.resolve(null)
 
       const [processedFront, processedBack] = await Promise.all([pFront, pBack])
@@ -325,8 +334,12 @@ function PrintPrepPanel() {
       }
     })
 
-    const updatedDeck = await Promise.all(promises)
-    setDeck(updatedDeck)
+    try {
+      const updatedDeck = await Promise.all(promises)
+      setDeck(updatedDeck)
+    } catch (error) {
+      console.error('Error applying prep settings to all cards:', error)
+    }
   }
 
   return (
@@ -350,8 +363,12 @@ function PrintPrepPanel() {
             onChange={(e) => {
               const newTrim = parseFloat(e.target.value)
               setTrimMm(newTrim)
-              // Update cut line overlay visually without processing image
+              // Update cut line overlay visually
               updateCutLineOverlay(newTrim)
+              // If bleed is active, reprocess image with new trim value
+              if (hasBleed) {
+                updatePrepSettings('slider', newTrim)
+              }
             }}
             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
           />
@@ -376,8 +393,12 @@ function PrintPrepPanel() {
                     const clampedValue = Math.max(-4, Math.min(4, newBleed))
                     bleedSlider.value = clampedValue.toString()
                   }
-                  // Update cut line overlay visually without processing image
+                  // Update cut line overlay visually
                   updateCutLineOverlay(undefined, newBleed)
+                  // If bleed is active, reprocess image with new bleed value
+                  if (hasBleed) {
+                    updatePrepSettings('input', undefined, newBleed)
+                  }
                 }}
                 className="w-16 text-right text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500 text-slate-700 dark:text-slate-300"
               />
@@ -397,8 +418,12 @@ function PrintPrepPanel() {
               // Sync input field
               const bleedInput = document.getElementById('bleed-fine-tune') as HTMLInputElement
               if (bleedInput) bleedInput.value = newBleed.toString()
-              // Update cut line overlay visually without processing image
+              // Update cut line overlay visually
               updateCutLineOverlay(undefined, newBleed)
+              // If bleed is active, reprocess image with new bleed value
+              if (hasBleed) {
+                updatePrepSettings('slider', undefined, newBleed)
+              }
             }}
             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
           />
