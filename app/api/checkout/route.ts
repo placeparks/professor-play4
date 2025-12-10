@@ -290,12 +290,34 @@ export async function POST(req: NextRequest) {
     // Calculate pricing
     const pricePerCard = getPricePerCard(quantity)
     const cardsTotal = pricePerCard * quantity
+    
+    // Calculate finish surcharges from cardData
+    let finishSurcharge = 0
+    if (cardData && Array.isArray(cardData)) {
+      cardData.forEach((card: any) => {
+        const qty = card.quantity || 1
+        if (card.finish && card.finish !== 'standard') {
+          if (card.finish.includes('silver')) {
+            let cardCost = 3.50
+            if (card.finish.includes('rainbow') || card.finish.includes('gloss')) {
+              cardCost += 2.50 // Total 6.00 for silver + rainbow/gloss
+            }
+            finishSurcharge += (cardCost * qty)
+          } else {
+            // Just Rainbow or Gloss
+            finishSurcharge += (2.50 * qty)
+          }
+        }
+      })
+    }
+    
     const shippingCost = getShippingCost(shippingCountry)
-    const totalAmount = cardsTotal + shippingCost
+    const totalAmount = cardsTotal + finishSurcharge + shippingCost
 
     // Convert to cents for Stripe
     const totalAmountCents = Math.round(totalAmount * 100)
     const shippingCostCents = Math.round(shippingCost * 100)
+    const finishSurchargeCents = Math.round(finishSurcharge * 100)
 
     // Generate temporary order ID for image organization
     const tempOrderId = `temp_${uuidv4()}`
@@ -391,6 +413,7 @@ export async function POST(req: NextRequest) {
     const metadata: Record<string, string> = {
       quantity: quantity.toString(),
       pricePerCard: pricePerCard.toString(),
+      finishSurcharge: finishSurcharge.toFixed(2),
       shippingCountry: shippingCountry,
       tempOrderId: tempOrderId,
       hasImages: (allImageUrls.length > 0 || (cardImages && cardImages.length > 0)) ? 'true' : 'false',
@@ -401,38 +424,58 @@ export async function POST(req: NextRequest) {
       metadata.imageStoragePath = tempOrderId
     }
 
+    // Build line items for Stripe
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: `Custom Card Order - ${quantity} cards`,
+            description: `Premium S33 cardstock custom cards (${quantity} cards @ $${pricePerCard.toFixed(2)}/card)`,
+            images: frontImageUrls.length > 0 && frontImageUrls[0].startsWith('http')
+              ? [frontImageUrls[0]]
+              : []
+          },
+          unit_amount: Math.round(pricePerCard * 100),
+        },
+        quantity: quantity,
+      }
+    ]
+
+    // Add finish surcharges as a separate line item if any
+    if (finishSurchargeCents > 0) {
+      lineItems.push({
+        price_data: {
+          currency: 'usd',
+          product_data: {
+            name: 'Premium Finishes',
+            description: 'Additional cost for premium finishes (Rainbow Foil, Piano Gloss, Spot Silver)'
+          },
+          unit_amount: finishSurchargeCents,
+        },
+        quantity: 1,
+      })
+    }
+
+    // Add shipping
+    lineItems.push({
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: 'Shipping',
+          description: shippingCountry === 'US' 
+            ? 'Standard Shipping (US)' 
+            : 'International Shipping'
+        },
+        unit_amount: shippingCostCents,
+      },
+      quantity: 1,
+    })
+
     // Create Stripe checkout session
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: `Custom Card Order - ${quantity} cards`,
-              description: `Premium S33 cardstock custom cards (${quantity} cards @ $${pricePerCard.toFixed(2)}/card)`,
-              images: frontImageUrls.length > 0 && frontImageUrls[0].startsWith('http')
-                ? [frontImageUrls[0]]
-                : []
-            },
-            unit_amount: Math.round(pricePerCard * 100),
-          },
-          quantity: quantity,
-        },
-        {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: 'Shipping',
-              description: shippingCountry === 'US' 
-                ? 'Standard Shipping (US)' 
-                : 'International Shipping'
-            },
-            unit_amount: shippingCostCents,
-          },
-          quantity: 1,
-        }
-      ],
+      line_items: lineItems,
       mode: 'payment',
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/#pricing-view`,

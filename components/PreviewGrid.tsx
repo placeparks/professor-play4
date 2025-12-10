@@ -124,7 +124,7 @@ export default function PreviewGrid() {
                             const updatedGroup = { ...group, quantity: group.quantity - 1 }
                             const newCard = {
                               ...group,
-                              id: Date.now() + Math.random(),
+                              id: String(Date.now() + Math.random()),
                               quantity: 1,
                               finish: newFinish,
                               // Reset any existing mask data since it's a new config
@@ -160,7 +160,7 @@ export default function PreviewGrid() {
                             const updatedGroup = { ...group, quantity: group.quantity - 1 }
                             const newCard = {
                               ...group,
-                              id: Date.now() + Math.random(),
+                              id: String(Date.now() + Math.random()),
                               quantity: 1,
                               finish: newFinish,
                             }
