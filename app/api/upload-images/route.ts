@@ -20,7 +20,7 @@ function getExtensionFromBase64(base64String: string): string {
 }
 
 // Upload images to Supabase Storage
-// Images are expected in order: [front1, back1, front2, back2, ...]
+// Images are expected in order: [front1, back1, mask1, front2, back2, mask2, ...]
 async function uploadImagesToStorage(
   images: string[],
   orderId: string,
@@ -37,13 +37,13 @@ async function uploadImagesToStorage(
   
   const baseFolderPath = `${orderId}/${timestamp}/${addressHash}`
   
-  // Process images in pairs (front + back per card)
-  for (let i = 0; i < images.length; i += 2) {
-    const cardIndex = Math.floor(i / 2) + 1
+  // Process images in triplets (front + back + mask per card)
+  for (let i = 0; i < images.length; i += 3) {
+    const cardIndex = Math.floor(i / 3) + 1
     const cardFolder = `${baseFolderPath}/card-${cardIndex}`
     
-    // Upload front image (even index)
-    if (i < images.length) {
+    // Upload front image (index 0, 3, 6, ...)
+    if (i < images.length && images[i] && images[i].trim() !== '') {
       try {
         const frontImage = images[i]
         
@@ -55,6 +55,8 @@ async function uploadImagesToStorage(
           const extension = getExtensionFromBase64(frontImage)
           const filePath = `${cardFolder}/front.${extension}`
           
+          console.log(`📤 Uploading front for card ${cardIndex} to: ${filePath}`)
+          
           const { data, error } = await supabase.storage
             .from(bucketName)
             .upload(filePath, buffer, {
@@ -63,24 +65,25 @@ async function uploadImagesToStorage(
             })
           
           if (error) {
-            console.error(`Error uploading front for card ${cardIndex}:`, error)
+            console.error(`❌ Error uploading front for card ${cardIndex}:`, error)
           } else {
             const { data: urlData } = supabase.storage
               .from(bucketName)
               .getPublicUrl(filePath)
             
             if (urlData?.publicUrl) {
+              console.log(`✅ Front uploaded for card ${cardIndex}: ${filePath}`)
               uploadedUrls.push(urlData.publicUrl)
             }
           }
         }
       } catch (error) {
-        console.error(`Error processing front for card ${cardIndex}:`, error)
+        console.error(`❌ Error processing front for card ${cardIndex}:`, error)
       }
     }
     
-    // Upload back image (odd index)
-    if (i + 1 < images.length) {
+    // Upload back image (index 1, 4, 7, ...)
+    if (i + 1 < images.length && images[i + 1] && images[i + 1].trim() !== '') {
       try {
         const backImage = images[i + 1]
         
@@ -92,6 +95,8 @@ async function uploadImagesToStorage(
           const extension = getExtensionFromBase64(backImage)
           const filePath = `${cardFolder}/back.${extension}`
           
+          console.log(`📤 Uploading back for card ${cardIndex} to: ${filePath}`)
+          
           const { data, error } = await supabase.storage
             .from(bucketName)
             .upload(filePath, buffer, {
@@ -100,19 +105,75 @@ async function uploadImagesToStorage(
             })
           
           if (error) {
-            console.error(`Error uploading back for card ${cardIndex}:`, error)
+            console.error(`❌ Error uploading back for card ${cardIndex}:`, error)
           } else {
             const { data: urlData } = supabase.storage
               .from(bucketName)
               .getPublicUrl(filePath)
             
             if (urlData?.publicUrl) {
+              console.log(`✅ Back uploaded for card ${cardIndex}: ${filePath}`)
               uploadedUrls.push(urlData.publicUrl)
             }
           }
         }
       } catch (error) {
-        console.error(`Error processing back for card ${cardIndex}:`, error)
+        console.error(`❌ Error processing back for card ${cardIndex}:`, error)
+      }
+    }
+    
+    // Upload mask image (index 2, 5, 8, ...)
+    if (i + 2 < images.length && images[i + 2] && images[i + 2].trim() !== '') {
+      try {
+        const maskImage = images[i + 2]
+        
+        // Skip if already a URL
+        if (maskImage.startsWith('http')) {
+          uploadedUrls.push(maskImage)
+        } else {
+          // Verify mask is PNG format (required for transparency)
+          const isPNG = maskImage.startsWith('data:image/png') || maskImage.includes('image/png')
+          if (!isPNG) {
+            console.warn(`⚠️ Mask for card ${cardIndex} is not PNG format! Expected PNG for transparency.`)
+          }
+          
+          // Extract base64 data - ensure we preserve PNG format
+          const base64Data = maskImage.replace(/^data:image\/\w+;base64,/, '')
+          const buffer = Buffer.from(base64Data, 'base64')
+          
+          // Masks are always PNG to preserve transparency
+          const extension = 'png'
+          const filePath = `${cardFolder}/mask.${extension}`
+          
+          console.log(`📤 Uploading mask for card ${cardIndex} to: ${filePath}`, {
+            isPNG,
+            bufferSize: buffer.length,
+            contentType: 'image/png'
+          })
+          
+          // Upload with explicit PNG content type to ensure transparency is preserved
+          const { data, error } = await supabase.storage
+            .from(bucketName)
+            .upload(filePath, buffer, {
+              contentType: 'image/png', // Explicitly set PNG content type
+              upsert: false
+            })
+          
+          if (error) {
+            console.error(`❌ Error uploading mask for card ${cardIndex}:`, error)
+          } else {
+            const { data: urlData } = supabase.storage
+              .from(bucketName)
+              .getPublicUrl(filePath)
+            
+            if (urlData?.publicUrl) {
+              console.log(`✅ Mask uploaded for card ${cardIndex}: ${filePath} (${buffer.length} bytes, PNG with transparency)`)
+              uploadedUrls.push(urlData.publicUrl)
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`❌ Error processing mask for card ${cardIndex}:`, error)
       }
     }
   }
