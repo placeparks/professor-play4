@@ -19,7 +19,7 @@ export default function EditorView() {
   const cutLineRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLDivElement>(null)
 
-  // Update cut line overlay based on bleed settings
+  // Update cut line overlay based on bleed settings (matching HTML logic exactly)
   useEffect(() => {
     const cutLine = cutLineRef.current
     const canvas = canvasRef.current
@@ -28,41 +28,38 @@ export default function EditorView() {
     const target = currentStep === 2 ? globalBack : currentCard
     if (!target) {
       cutLine.classList.add('hidden')
+      // Reset aspect ratio when no target
+      canvas.style.aspectRatio = '63 / 88'
       return
     }
 
-    const bleedMm = target.bleedMm !== undefined ? target.bleedMm : 1.75
-    const hasBleed = target.hasBleed || false
-
+    // Standard TCG Dimensions
+    const baseW = 63
+    const baseH = 88
+    
+    // Calculate total canvas size in "units" (base + bleed)
+    const activeBleed = target.hasBleed ? (target.bleedMm !== undefined ? target.bleedMm : 1.75) : 0
+    
+    const totalW = baseW + (2 * activeBleed)
+    const totalH = baseH + (2 * activeBleed)
+    
+    // Update canvas aspect ratio to expand when bleed is enabled
+    canvas.style.aspectRatio = `${totalW} / ${totalH}`
+    
+    // Calculate cut line position (63x88mm boundary)
+    const cutInsetX = (activeBleed / totalW) * 100
+    const cutInsetY = (activeBleed / totalH) * 100
+    
+    cutLine.style.left = `${cutInsetX}%`
+    cutLine.style.right = `${cutInsetX}%`
+    cutLine.style.top = `${cutInsetY}%`
+    cutLine.style.bottom = `${cutInsetY}%`
+    
     // Show cut line when bleed is enabled
-    if (hasBleed) {
+    if (target.hasBleed) {
       cutLine.classList.remove('hidden')
-      
-      // Calculate cut line position based on bleed amount
-      // Base dimensions: 63mm x 88mm (standard TCG size)
-      const baseW = 63
-      const baseH = 88
-      const activeBleed = bleedMm
-      
-      // Total canvas size including bleed
-      const totalW = baseW + (2 * activeBleed)
-      const totalH = baseH + (2 * activeBleed)
-      
-      // Calculate inset percentage for cut line
-      const cutInsetX = (activeBleed / totalW) * 100
-      const cutInsetY = (activeBleed / totalH) * 100
-      
-      cutLine.style.left = `${cutInsetX}%`
-      cutLine.style.right = `${cutInsetX}%`
-      cutLine.style.top = `${cutInsetY}%`
-      cutLine.style.bottom = `${cutInsetY}%`
-      
-      // Update canvas aspect ratio
-      canvas.style.aspectRatio = `${totalW} / ${totalH}`
     } else {
       cutLine.classList.add('hidden')
-      // Reset aspect ratio when bleed is disabled
-      canvas.style.aspectRatio = '63 / 88'
     }
   }, [currentStep, currentCardIndex, currentCard?.bleedMm, currentCard?.hasBleed, globalBack.bleedMm, globalBack.hasBleed])
 
