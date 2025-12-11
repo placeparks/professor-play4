@@ -95,7 +95,7 @@ export default function DesignStepper({ onExit }: DesignStepperProps) {
               </button>
             </div>
             <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-              <div className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 text-right hidden sm:block">
+              <div className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 text-right block">
                 <div className="font-bold text-slate-900 dark:text-white">{totalPrice}</div>
                 <div>{deckStats}</div>
               </div>
