@@ -31,17 +31,18 @@ function getExtensionFromBase64(base64String: string): string {
   return match ? match[1] : 'png'
 }
 
-// Upload images to Supabase Storage organized by card (front + back together)
+// Upload images to Supabase Storage organized by card (front + back + mask together)
 async function uploadImagesToStorage(
-  cardData: Array<{ front?: string | null; back?: string | null }>,
+  cardData: Array<{ front?: string | null; back?: string | null; silverMask?: string | null }>,
   orderId: string,
   shippingAddress: any
-): Promise<string[]> {
+): Promise<{ uploadedUrls: string[]; maskUrls: (string | null)[] }> {
   if (!supabase) {
     throw new Error('Supabase not configured')
   }
   
   const uploadedUrls: string[] = []
+  const maskUrls: (string | null)[] = []
   const bucketName = 'order-images'
   
   // Create folder structure: order-images/{orderId}/{timestamp}/{country_postal}/
@@ -52,7 +53,7 @@ async function uploadImagesToStorage(
   
   const baseFolderPath = `${orderId}/${timestamp}/${addressHash}`
 
-  // Upload each card's front and back in its own folder
+  // Upload each card's front, back, and mask in its own folder
   for (let cardIndex = 0; cardIndex < cardData.length; cardIndex++) {
     const card = cardData[cardIndex]
     const cardFolder = `${baseFolderPath}/card-${cardIndex + 1}`
@@ -132,9 +133,53 @@ async function uploadImagesToStorage(
         console.error(`Error processing back image for card ${cardIndex + 1}:`, error)
       }
     }
+
+    // Upload silver mask if present
+    if (card.silverMask && typeof card.silverMask === 'string') {
+      try {
+        // Skip if already a URL (not base64)
+        if (card.silverMask.startsWith('http')) {
+          maskUrls.push(card.silverMask)
+        } else {
+          // Convert base64 to buffer
+          const buffer = base64ToBuffer(card.silverMask)
+          const extension = getExtensionFromBase64(card.silverMask)
+          const filePath = `${cardFolder}/mask.${extension}`
+          
+          // Upload to Supabase Storage
+          const { data, error } = await supabase.storage
+            .from(bucketName)
+            .upload(filePath, buffer, {
+              contentType: `image/${extension}`,
+              upsert: false
+            })
+          
+          if (error) {
+            console.error(`Error uploading mask for card ${cardIndex + 1}:`, error)
+            maskUrls.push(null)
+          } else {
+            // Get public URL
+            const { data: urlData } = supabase.storage
+              .from(bucketName)
+              .getPublicUrl(filePath)
+            
+            if (urlData?.publicUrl) {
+              maskUrls.push(urlData.publicUrl)
+            } else {
+              maskUrls.push(null)
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`Error processing mask for card ${cardIndex + 1}:`, error)
+        maskUrls.push(null)
+      }
+    } else {
+      maskUrls.push(null)
+    }
   }
   
-  return uploadedUrls
+  return { uploadedUrls, maskUrls }
 }
 
 // Pricing tiers
@@ -322,7 +367,7 @@ export async function POST(req: NextRequest) {
     // Generate temporary order ID for image organization
     const tempOrderId = `temp_${uuidv4()}`
 
-    // Upload images organized by card (front + back in same folder)
+    // Upload images organized by card (front + back + mask in same folder)
     let frontImageUrls: string[] = []
     let backImageUrls: string[] = []
     let allImageUrls: string[] = []
@@ -343,6 +388,7 @@ export async function POST(req: NextRequest) {
       allImageUrls = cardImages
       
       // Extract front and back URLs from cardData if available
+      // Note: Masks should already be URLs if images were pre-uploaded
       if (cardData && cardData.length > 0) {
         processedCardData = cardData.map((card: any, index: number) => {
           // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
@@ -367,14 +413,36 @@ export async function POST(req: NextRequest) {
       }
     } else if (cardData && cardData.length > 0 && supabase) {
       try {
+        // Extract front and back images from cardImages array
+        // cardImages is in order: [front1, back1, front2, back2, ...]
+        const extractImages = (index: number) => {
+          const frontIndex = index * 2
+          const backIndex = index * 2 + 1
+          return {
+            front: (cardImages && cardImages[frontIndex]) || null,
+            back: (cardImages && cardImages[backIndex]) || null
+          }
+        }
+        
+        // Prepare card data with front, back, and mask images for upload
+        const cardDataForUpload = cardData.map((card: any, index: number) => {
+          const { front, back } = extractImages(index)
+          return {
+            front: front,
+            back: back,
+            silverMask: card.silverMask || null
+          }
+        })
+        
         // Upload images organized by card (each card gets its own folder)
-        allImageUrls = await uploadImagesToStorage(
-          cardData,
+        const uploadResult = await uploadImagesToStorage(
+          cardDataForUpload,
           tempOrderId,
           shippingAddress
         )
+        allImageUrls = uploadResult.uploadedUrls
         
-        // Extract front and back URLs from the uploaded URLs
+        // Extract front and back URLs from the uploaded URLs and update mask URLs
         if (allImageUrls.length > 0) {
           processedCardData = cardData.map((card: any, index: number) => {
             // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
@@ -392,11 +460,17 @@ export async function POST(req: NextRequest) {
               updatedCard.backUrl = allImageUrls[backUrlIndex]
               backImageUrls.push(allImageUrls[backUrlIndex])
             }
+
+            // Update mask URL if it was uploaded (masks are saved as separate image files)
+            // Each mask gets its own URL: {orderId}/{timestamp}/{addressHash}/card-{index}/mask.{extension}
+            if (uploadResult.maskUrls[index]) {
+              updatedCard.silverMask = uploadResult.maskUrls[index]
+            }
             
             return updatedCard
           })
           
-          console.log(`✅ Uploaded ${allImageUrls.length} images to storage`)
+          console.log(`✅ Uploaded ${allImageUrls.length} images and ${uploadResult.maskUrls.filter(Boolean).length} masks to storage`)
         }
       } catch (uploadError: any) {
         console.error('⚠️ Error uploading images to storage (continuing with base64):', uploadError.message)
