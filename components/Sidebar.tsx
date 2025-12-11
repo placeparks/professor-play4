@@ -74,6 +74,13 @@ export default function Sidebar() {
     setMaskingTolerance(15)
     setCurrentZoomLevel(1)
     setShowResetConfirm(false)
+    // Reset file inputs
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+    if (xmlInputRef.current) {
+      xmlInputRef.current.value = ''
+    }
   }
 
   const cancelReset = () => {
