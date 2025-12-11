@@ -384,8 +384,9 @@ input[type=range]::-moz-range-thumb {
   background-size: 200% 200%;
   animation: silverShimmer 3s linear infinite;
   mask-repeat: no-repeat;
-  mask-size: 100% 100%;
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-size: 100% 100%;
+  mask-position: center;
+  -webkit-mask-position: center;
+  mask-size: cover;
+  -webkit-mask-size: cover;
 }
 
