@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { ImagePlus, List, FileCode, Crop, Copy, ArrowRight, Scissors } from 'lucide-react'
+import { ImagePlus, List, FileCode, Crop, Copy, ArrowRight, Scissors, RotateCcw, CheckCircle, AlertTriangle, X } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
 import { processImage } from '@/utils/imageProcessing'
 import { handleFiles as processFiles } from '@/utils/fileHandling'
@@ -9,10 +9,25 @@ import { handleXMLFile } from '@/utils/xmlHandling'
 import { openImportModal } from '@/utils/modalHelpers'
 
 export default function Sidebar() {
-  const { currentStep, setCurrentStep, globalBack, setGlobalBack, deck, setDeck, currentCardIndex, setCurrentCardIndex } = useApp()
+  const { 
+    currentStep, 
+    setCurrentStep, 
+    globalBack, 
+    setGlobalBack, 
+    deck, 
+    setDeck, 
+    currentCardIndex, 
+    setCurrentCardIndex,
+    setInspectorIndex,
+    setActiveVersionIndex,
+    setMaskingColors,
+    setMaskingTolerance,
+    setCurrentZoomLevel
+  } = useApp()
   const [processing, setProcessing] = useState(false)
   const [processingPercent, setProcessingPercent] = useState(0)
   const [processingText, setProcessingText] = useState('Processing...')
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const xmlInputRef = useRef<HTMLInputElement>(null)
 
@@ -37,8 +52,99 @@ export default function Sidebar() {
     }
   }
 
+  const handleReset = () => {
+    setShowResetConfirm(true)
+  }
+
+  const confirmReset = () => {
+    // Reset all state to initial values
+    setDeck([])
+    setGlobalBack({
+      original: null,
+      processed: null,
+      trimMm: 2.5,
+      bleedMm: 1.75,
+      hasBleed: false,
+    })
+    setCurrentCardIndex(-1)
+    setCurrentStep(1)
+    setInspectorIndex(-1)
+    setActiveVersionIndex(-1)
+    setMaskingColors([])
+    setMaskingTolerance(15)
+    setCurrentZoomLevel(1)
+    setShowResetConfirm(false)
+  }
+
+  const cancelReset = () => {
+    setShowResetConfirm(false)
+  }
+
   return (
-    <div id="main-sidebar" className="w-full md:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-lg md:shadow-none transition-colors">
+    <>
+      {/* Reset Confirmation Modal */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center backdrop-blur-sm p-2 sm:p-4">
+          <div className="bg-white dark:bg-slate-850 rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-modal">
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+              <h3 className="font-bold text-base sm:text-lg text-slate-800 dark:text-white flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 dark:text-red-400" />
+                Reset Project
+              </h3>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="text-slate-400 hover:text-red-500 active:text-red-600 transition-colors p-1 touch-manipulation"
+                aria-label="Close"
+              >
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 sm:p-6 bg-white dark:bg-slate-850">
+              <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                <p className="text-sm text-slate-700 dark:text-slate-300 font-medium mb-2">
+                  Are you sure you want to reset the project?
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-400">
+                  This will permanently clear all cards, settings, and start fresh. This action cannot be undone.
+                </p>
+              </div>
+              <div className="flex items-start gap-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                <RotateCcw className="w-5 h-5 text-slate-400 dark:text-slate-500 shrink-0 mt-0.5" />
+                <div className="text-xs text-slate-600 dark:text-slate-400">
+                  <p className="font-semibold mb-1">What will be reset:</p>
+                  <ul className="list-disc list-inside space-y-1 text-slate-500 dark:text-slate-500">
+                    <li>All card images and data</li>
+                    <li>Card backs and finishes</li>
+                    <li>Trim and bleed settings</li>
+                    <li>All customizations</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 flex flex-col sm:flex-row gap-2 sm:gap-3 justify-end">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="px-4 py-2.5 rounded-lg font-medium text-sm transition-colors bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700 touch-manipulation min-h-[44px]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReset}
+                className="px-4 py-2.5 rounded-lg font-medium text-sm transition-colors bg-red-600 hover:bg-red-700 active:bg-red-800 text-white shadow-sm touch-manipulation min-h-[44px]"
+              >
+                Yes, Reset Project
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div id="main-sidebar" className="w-full md:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-lg md:shadow-none transition-colors">
       <div className="flex-grow overflow-y-auto custom-scrollbar">
         <div id="upload-panel" className="p-4 sm:p-6 flex-grow">
           <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
@@ -104,6 +210,15 @@ export default function Sidebar() {
               >
                 <FileCode className="w-3 h-3" /> Upload XML (MPCFill)
               </button>
+
+              {deck.length > 0 && (
+                <button
+                  onClick={handleReset}
+                  className="w-full border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-2 rounded-md text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/30 hover:border-red-300 dark:hover:border-red-700 transition-all flex items-center justify-center gap-2 mt-4"
+                >
+                  <RotateCcw className="w-3 h-3" /> Reset Project
+                </button>
+              )}
             </div>
           )}
 
@@ -137,6 +252,7 @@ export default function Sidebar() {
         </button>
       </div>
     </div>
+    </>
   )
 }
 
@@ -145,6 +261,7 @@ function PrintPrepPanel() {
   const [trimMm, setTrimMm] = useState(2.5)
   const [bleedMm, setBleedMm] = useState(1.75)
   const [hasBleed, setHasBleed] = useState(false)
+  const [showAppliedNotification, setShowAppliedNotification] = useState(false)
 
   const target = currentStep === 2 ? globalBack : deck[currentCardIndex]
 
@@ -337,13 +454,26 @@ function PrintPrepPanel() {
     try {
       const updatedDeck = await Promise.all(promises)
       setDeck(updatedDeck)
+      // Show success notification
+      setShowAppliedNotification(true)
+      setTimeout(() => {
+        setShowAppliedNotification(false)
+      }, 3000) // Hide after 3 seconds
     } catch (error) {
       console.error('Error applying prep settings to all cards:', error)
     }
   }
 
   return (
-    <div id="print-prep-panel" className="p-6 border-t border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-slate-850">
+    <div id="print-prep-panel" className="p-6 border-t border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-slate-850 relative">
+      {/* Success Notification */}
+      {showAppliedNotification && (
+        <div className="absolute top-4 left-4 right-4 bg-green-500 dark:bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
+          <CheckCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="text-xs font-semibold">Settings applied to all {deck.length} card{deck.length !== 1 ? 's' : ''}!</span>
+        </div>
+      )}
+      
       <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
         <Crop className="w-4 h-4" /> Print Prep
       </h3>
