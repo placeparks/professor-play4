@@ -17,6 +17,7 @@ export async function handleFiles(
   const total = imageFiles.length
   if (total === 0) return
 
+  const startingDeckLength = deck.length
   setProcessing(true)
 
   for (let i = 0; i < total; i++) {
@@ -53,12 +54,14 @@ export async function handleFiles(
     })
   }
 
-  setDeck(prev => {
-    if (prev.length > 0 && currentCardIndex === -1) {
+  // Set currentCardIndex after all images are processed
+  // If we started with no cards (after reset) and processed images, show the first one
+  if (startingDeckLength === 0 && total > 0 && currentCardIndex === -1) {
+    // Wait for all setDeck calls to complete, then set currentCardIndex
+    setTimeout(() => {
       setCurrentCardIndex(0)
-    }
-    return prev
-  })
+    }, 100)
+  }
 
   setProcessing(false)
 }
