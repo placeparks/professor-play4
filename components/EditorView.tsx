@@ -1,203 +1,476 @@
 'use client'
 
-import { ChevronLeft, ChevronRight, Minus, Plus, Image } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { X, ShoppingCart, Lock } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
-import { useEffect, useRef } from 'react'
+import { updateDeckStats } from '@/utils/deckStats'
+import { compressImage } from '@/utils/imageCompression'
 
-export default function EditorView() {
-  const {
-    currentStep,
-    deck,
-    currentCardIndex,
-    setCurrentCardIndex,
-    globalBack,
-    setDeck,
-  } = useApp()
+export default function CheckoutModal() {
+  const [isOpen, setIsOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const { deck, globalBack } = useApp()
 
-  const currentCard = currentStep === 2 ? null : deck[currentCardIndex]
-  const imageToShow = currentStep === 2 ? globalBack.processed : currentCard?.front
-  const cutLineRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLDivElement>(null)
+  const [formData, setFormData] = useState({
+    email: '',
+    name: '',
+    line1: '',
+    line2: '',
+    city: '',
+    state: '',
+    postal_code: '',
+    country: 'US'
+  })
 
-  // Update cut line overlay based on bleed settings (matching HTML logic exactly)
   useEffect(() => {
-    const cutLine = cutLineRef.current
-    const canvas = canvasRef.current
-    if (!cutLine || !canvas) return
+    // Expose function to open modal globally
+    ;(window as any).openCheckoutModal = () => setIsOpen(true)
+  }, [])
 
-    const target = currentStep === 2 ? globalBack : currentCard
-    if (!target) {
-      cutLine.classList.add('hidden')
-      // Reset aspect ratio when no target
-      canvas.style.aspectRatio = '63 / 88'
-      return
-    }
-
-    // Standard TCG Dimensions
-    const baseW = 63
-    const baseH = 88
-    
-    // Calculate total canvas size in "units" (base + bleed)
-    const activeBleed = target.hasBleed ? (target.bleedMm !== undefined ? target.bleedMm : 1.75) : 0
-    
-    const totalW = baseW + (2 * activeBleed)
-    const totalH = baseH + (2 * activeBleed)
-    
-    // Update canvas aspect ratio to expand when bleed is enabled
-    canvas.style.aspectRatio = `${totalW} / ${totalH}`
-    
-    // Calculate cut line position (63x88mm boundary)
-    const cutInsetX = (activeBleed / totalW) * 100
-    const cutInsetY = (activeBleed / totalH) * 100
-    
-    cutLine.style.left = `${cutInsetX}%`
-    cutLine.style.right = `${cutInsetX}%`
-    cutLine.style.top = `${cutInsetY}%`
-    cutLine.style.bottom = `${cutInsetY}%`
-    
-    // Show cut line when bleed is enabled
-    if (target.hasBleed) {
-      cutLine.classList.remove('hidden')
-    } else {
-      cutLine.classList.add('hidden')
-    }
-  }, [currentStep, currentCardIndex, currentCard?.bleedMm, currentCard?.hasBleed, globalBack.bleedMm, globalBack.hasBleed])
-
-  const nextCard = () => {
-    if (deck.length === 0) return
-    setCurrentCardIndex((currentCardIndex + 1) % deck.length)
+  const closeModal = () => {
+    setIsOpen(false)
+    setIsSubmitting(false)
   }
 
-  const prevCard = () => {
-    if (deck.length === 0) return
-    setCurrentCardIndex((currentCardIndex - 1 + deck.length) % deck.length)
+  const getShippingCost = (country: string): number => {
+    return country === 'US' ? 6.95 : 24.95
   }
 
-  const updateQuantity = (change: number) => {
-    if (currentCardIndex < 0 || !deck[currentCardIndex]) return
-    const card = deck[currentCardIndex]
-    const newQty = (card.quantity || 1) + change
-    if (newQty >= 1) {
-      setDeck(prev => {
-        const newDeck = [...prev]
-        newDeck[currentCardIndex] = { ...newDeck[currentCardIndex], quantity: newQty }
-        return newDeck
+  // Calculate prices using the same logic as updateDeckStats
+  const quantity = deck.reduce((acc, card) => acc + (card.quantity || 1), 0)
+  
+  let pricePerCard = 0.35
+  if (quantity >= 500) {
+    pricePerCard = 0.26
+  } else if (quantity >= 145) {
+    pricePerCard = 0.30
+  }
+
+  // Calculate finish surcharges (same logic as updateDeckStats)
+  let finishSurcharge = 0
+  deck.forEach(card => {
+    const qty = card.quantity || 1
+    if (card.finish && card.finish !== 'standard') {
+      if (card.finish.includes('silver')) {
+        let cardCost = 3.50
+        if (card.finish.includes('rainbow') || card.finish.includes('gloss')) {
+          cardCost += 2.50 // Total 6.00 for silver + rainbow/gloss
+        }
+        finishSurcharge += (cardCost * qty)
+      } else {
+        // Just Rainbow or Gloss
+        finishSurcharge += (2.50 * qty)
+      }
+    }
+  })
+
+  const cardsTotal = quantity * pricePerCard
+  const shippingCost = getShippingCost(formData.country)
+  const total = cardsTotal + finishSurcharge + shippingCost
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+
+    try {
+      // Prepare card images organized properly (front/back pairs)
+      const frontImages = deck.map(card => card.front || card.originalFront).filter(Boolean) as string[]
+      
+      // Collect back images - use card-specific back, or global back, or null
+      const backImages: string[] = []
+      deck.forEach((card) => {
+        const backImg = card.back || card.originalBack || globalBack.processed || globalBack.original
+        if (backImg) backImages.push(backImg)
       })
+
+      // Prepare card data WITHOUT base64 images (we'll upload separately and use URLs)
+      // Base64 images are included separately in allImages array
+      const cardData = deck.map((card) => ({
+        id: card.id, // Include card ID
+        quantity: card.quantity || 1,
+        trimMm: card.trimMm || 0,
+        bleedMm: card.bleedMm || 2,
+        hasBleed: card.hasBleed || false,
+        finish: card.finish || 'standard', // Include finish/effects (standard, rainbow, gloss, silver, etc.)
+        silverMask: card.silverMask || null, // Include silver mask if available
+        maskingColors: card.maskingColors || [], // Include masking colors if available
+        maskingTolerance: card.maskingTolerance || null, // Include masking tolerance if available
+        printsUri: card.printsUri || null, // Include Scryfall prints URI if available
+        originalFront: null, // Don't save original base64 (too large)
+        originalBack: null, // Don't save original base64 (too large)
+        // Don't include base64 images here - they're in allImages array
+        // After upload, URLs will be added to cardData
+        front: null,
+        back: null
+      }))
+
+      // Combine all images in order: [front1, back1, front2, back2, ...]
+      const allImages: string[] = []
+      for (let i = 0; i < frontImages.length; i++) {
+        if (frontImages[i]) allImages.push(frontImages[i])
+        if (backImages[i]) allImages.push(backImages[i])
+      }
+
+      // Check total payload size with base64
+      const testPayload = {
+        quantity,
+        shippingAddress: formData,
+        cardImages: allImages,
+        cardData
+      }
+      const payloadSizeMB = (new Blob([JSON.stringify(testPayload)]).size / (1024 * 1024)).toFixed(2)
+      console.log(`📊 Estimated payload size: ${payloadSizeMB} MB`)
+
+      let uploadedImageUrls: string[] = []
+
+      // Always upload images first if we have any images (safer for Vercel's 4.5MB limit)
+      // This prevents 413 errors and ensures reliable checkout
+      const shouldUploadImagesFirst = allImages.length > 0
+      
+      if (shouldUploadImagesFirst) {
+        console.log(`📤 Payload too large (${payloadSizeMB} MB), uploading images via backend first...`)
+
+        // Generate temp order ID
+        const tempOrderId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+
+        console.log(`📦 Total images to upload: ${allImages.length} (${frontImages.length} fronts, ${backImages.length} backs)`)
+
+        // Compress images before upload to reduce payload size
+        console.log('🗜️ Compressing images to reduce payload size...')
+        const compressedImages: string[] = []
+        for (let i = 0; i < allImages.length; i++) {
+          console.log(`🗜️ Compressing image ${i + 1}/${allImages.length}...`)
+          const compressed = await compressImage(allImages[i], 0.8) // Max 0.8MB per image
+          compressedImages.push(compressed)
+        }
+        console.log(`✅ Compressed ${compressedImages.length} images`)
+
+        // Upload in chunks of 2 images to stay under 4.5MB limit per request
+        const CHUNK_SIZE = 2 // 1 card per chunk (2 images = 1 front + 1 back pair)
+        const totalChunks = Math.ceil(compressedImages.length / CHUNK_SIZE)
+
+        for (let i = 0; i < compressedImages.length; i += CHUNK_SIZE) {
+          const chunk = compressedImages.slice(i, i + CHUNK_SIZE)
+          const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
+
+          console.log(`📤 Uploading chunk ${chunkNum}/${totalChunks}: ${chunk.length} images`)
+
+          try {
+            const uploadResponse = await fetch('/api/upload-images', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                images: chunk,
+                orderId: tempOrderId,
+                shippingAddress: formData
+              })
+            })
+
+            if (!uploadResponse.ok) {
+              let errorText
+              try {
+                const errorData = await uploadResponse.json()
+                errorText = errorData.error || errorData.message || JSON.stringify(errorData)
+              } catch {
+                try {
+                  errorText = await uploadResponse.text()
+                } catch {
+                  errorText = `HTTP ${uploadResponse.status}: ${uploadResponse.statusText}`
+                }
+              }
+              console.error(`❌ Upload failed for chunk ${chunkNum}:`, errorText)
+              throw new Error(`Upload failed: ${errorText}`)
+            }
+
+            const uploadData = await uploadResponse.json()
+            if (uploadData.imageUrls && uploadData.imageUrls.length > 0) {
+              uploadedImageUrls.push(...uploadData.imageUrls)
+              console.log(`✅ Chunk ${chunkNum} uploaded: ${uploadData.imageUrls.length} URLs received`)
+            } else {
+              console.error(`⚠️ Chunk ${chunkNum} upload returned no URLs`)
+            }
+          } catch (uploadError: any) {
+            console.error(`❌ Error uploading chunk ${chunkNum}:`, uploadError)
+            throw new Error(`Failed to upload images: ${uploadError.message}`)
+          }
+        }
+
+        console.log(`✅ All images uploaded successfully: ${uploadedImageUrls.length} total URLs`)
+
+        // Map URLs back to cardData
+        const finalCardData = cardData.map((card, index) => {
+          const frontUrlIndex = index * 2
+          const backUrlIndex = index * 2 + 1
+
+          return {
+            ...card,
+            frontUrl: uploadedImageUrls[frontUrlIndex] || null,
+            backUrl: uploadedImageUrls[backUrlIndex] || null
+          }
+        })
+
+        // Send checkout request with URLs only (lightweight)
+        const checkoutPayload = {
+          quantity,
+          shippingAddress: formData,
+          cardImages: uploadedImageUrls, // URLs instead of base64
+          cardData: finalCardData
+        }
+
+        const checkoutPayloadSize = (new Blob([JSON.stringify(checkoutPayload)]).size / (1024 * 1024)).toFixed(2)
+        console.log(`📊 Checkout payload size with URLs: ${checkoutPayloadSize} MB`)
+
+        const response = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(checkoutPayload)
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          let error
+          try {
+            error = JSON.parse(errorText)
+          } catch {
+            error = { error: errorText }
+          }
+          throw new Error(error.error || error.message || 'Failed to create checkout session')
+        }
+
+        const data = await response.json()
+
+        if (data.url) {
+          window.location.href = data.url
+        } else {
+          throw new Error('No checkout URL received')
+        }
+      } else {
+        // Payload is small enough, send directly
+        console.log(`✅ Payload size OK (${payloadSizeMB} MB), sending directly to checkout`)
+
+        const response = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(testPayload)
+        })
+
+        if (!response.ok) {
+          const errorText = await response.text()
+          let error
+          try {
+            error = JSON.parse(errorText)
+          } catch {
+            error = { error: errorText }
+          }
+          throw new Error(error.error || error.message || 'Failed to create checkout session')
+        }
+
+        const data = await response.json()
+
+        if (data.url) {
+          window.location.href = data.url
+        } else {
+          throw new Error('No checkout URL received')
+        }
+      }
+    } catch (error: any) {
+      console.error('Checkout error:', error)
+      alert('Checkout failed: ' + error.message)
+      setIsSubmitting(false)
     }
   }
+
+  if (!isOpen) return null
 
   return (
-    <div className="flex-grow bg-slate-100 dark:bg-slate-950 canvas-area p-2 sm:p-4 md:p-8 flex flex-col items-center justify-center relative overflow-hidden transition-colors">
-      <div className="absolute top-2 left-2 sm:top-4 sm:left-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur px-2 sm:px-3 py-1 sm:py-1.5 rounded shadow text-[10px] sm:text-xs font-medium text-slate-600 dark:text-slate-300 z-10 flex gap-1.5 sm:gap-2">
-        <span>Canvas: 2.5" x 3.5"</span>
-        {currentStep === 2 && (
-          <span className="bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-2 rounded-sm font-bold">
-            Common Back
-          </span>
-        )}
-      </div>
+    <div className="fixed inset-0 bg-slate-900/90 z-[90] flex items-center justify-center backdrop-blur-sm p-2 sm:p-4">
+      <div className="bg-white dark:bg-slate-850 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-modal">
+        {/* Header */}
+        <div className="p-3 sm:p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+          <h3 className="font-bold text-base sm:text-lg text-slate-800 dark:text-white flex items-center gap-2">
+            <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" /> Checkout
+          </h3>
+          <button
+            onClick={closeModal}
+            className="text-slate-400 hover:text-red-500 transition-colors p-1 touch-manipulation"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+          </button>
+        </div>
 
-      <div className="flex flex-col items-center justify-center w-full h-full">
-        {deck.length > 0 && currentStep === 1 && (
-          <div className="flex items-center gap-2 sm:gap-4 mb-3 sm:mb-4 z-10">
-            <button
-              onClick={prevCard}
-              className="bg-white dark:bg-slate-800 p-2 sm:p-2 rounded-full shadow hover:bg-blue-50 dark:hover:bg-slate-700 active:bg-blue-100 dark:active:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
-              title="Previous Card"
-              aria-label="Previous Card"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
+        {/* Content */}
+        <div className="p-4 sm:p-6 overflow-y-auto bg-white dark:bg-slate-850">
+          {/* Order Summary */}
+          <div className="mb-4 sm:mb-6 p-3 sm:p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700">
+            <h4 className="font-bold text-sm sm:text-base text-slate-800 dark:text-white mb-2 sm:mb-3">Order Summary</h4>
+            <div className="space-y-2 text-xs sm:text-sm">
+              <div className="flex justify-between">
+                <span className="text-slate-600 dark:text-slate-400">{quantity} cards</span>
+                <span className="font-semibold text-slate-800 dark:text-white">${cardsTotal.toFixed(2)}</span>
+              </div>
+              {finishSurcharge > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-slate-600 dark:text-slate-400">Premium Finishes</span>
+                  <span className="font-semibold text-slate-800 dark:text-white">${finishSurcharge.toFixed(2)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-slate-600 dark:text-slate-400">Shipping</span>
+                <span className="font-semibold text-slate-800 dark:text-white">${shippingCost.toFixed(2)}</span>
+              </div>
+              <div className="border-t border-slate-200 dark:border-slate-700 pt-2 mt-2 flex justify-between">
+                <span className="font-bold text-slate-900 dark:text-white">Total</span>
+                <span className="font-bold text-lg text-green-600 dark:text-green-400">${total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
 
-            <div className="flex items-center gap-2 sm:gap-3 bg-white dark:bg-slate-800 rounded-full shadow pl-3 sm:pl-4 pr-1.5 sm:pr-2 py-1.5 transition-colors">
-              <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200 min-w-[35px] sm:min-w-[40px] text-center">
-                {currentCardIndex + 1} / {deck.length}
-              </span>
-              <div className="w-px h-3 sm:h-4 bg-slate-200 dark:bg-slate-600"></div>
-              <div className="flex items-center gap-0.5 sm:gap-1">
-                <button
-                  onClick={() => updateQuantity(-1)}
-                  className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
-                  title="Decrease Quantity"
-                  aria-label="Decrease Quantity"
-                >
-                  <Minus className="w-3 h-3" />
-                </button>
-                <span className="text-xs font-bold text-blue-600 dark:text-blue-400 w-7 sm:w-8 text-center">
-                  x{currentCard?.quantity || 1}
-                </span>
-                <button
-                  onClick={() => updateQuantity(1)}
-                  className="w-7 h-7 sm:w-6 sm:h-6 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 active:bg-slate-200 dark:active:bg-slate-600 text-slate-400 dark:text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation"
-                  title="Increase Quantity"
-                  aria-label="Increase Quantity"
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
+          {/* Shipping Form */}
+          <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+            <div>
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                Email *
+              </label>
+              <input
+                type="email"
+                required
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none touch-manipulation"
+                placeholder="your@email.com"
+                autoComplete="email"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                Full Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none touch-manipulation"
+                placeholder="John Doe"
+                autoComplete="name"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                Address Line 1 *
+              </label>
+              <input
+                type="text"
+                required
+                value={formData.line1}
+                onChange={(e) => setFormData({ ...formData, line1: e.target.value })}
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none touch-manipulation"
+                placeholder="123 Main Street"
+                autoComplete="street-address"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                Address Line 2
+              </label>
+              <input
+                type="text"
+                value={formData.line2}
+                onChange={(e) => setFormData({ ...formData, line2: e.target.value })}
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none touch-manipulation"
+                placeholder="Apartment, suite, etc."
+                autoComplete="address-line2"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                  City *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none touch-manipulation"
+                  placeholder="New York"
+                  autoComplete="address-level2"
+                />
+              </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                  State/Province *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.state}
+                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none touch-manipulation"
+                  placeholder="NY"
+                  autoComplete="address-level1"
+                />
               </div>
             </div>
 
-            <button
-              onClick={nextCard}
-              className="bg-white dark:bg-slate-800 p-2 sm:p-2 rounded-full shadow hover:bg-blue-50 dark:hover:bg-slate-700 active:bg-blue-100 dark:active:bg-slate-600 text-slate-600 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors touch-manipulation min-w-[44px] min-h-[44px] flex items-center justify-center"
-              title="Next Card"
-              aria-label="Next Card"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </div>
-        )}
-
-        <div
-          ref={canvasRef}
-          id="card-canvas"
-          className="h-[280px] sm:h-[350px] md:h-[420px] w-auto max-w-[90vw] sm:max-w-full bg-white dark:bg-slate-800 shadow-2xl rounded-xl relative border border-slate-200 dark:border-slate-700 transition-all duration-200 transform origin-center"
-        >
-          <div
-            ref={cutLineRef}
-            id="cut-line"
-            className="absolute border-2 border-cyan-500 border-dotted pointer-events-none z-40 hidden opacity-90"
-          >
-            <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[9px] text-cyan-600 dark:text-cyan-400 font-bold font-mono bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded shadow border border-cyan-100 dark:border-cyan-900 whitespace-nowrap">
-              Cut Line (63x88mm)
-            </span>
-          </div>
-
-          <div className="w-full h-full rounded-lg overflow-hidden relative bg-white dark:bg-slate-800 group">
-            {imageToShow ? (
-              <img
-                key={`${currentStep}-${currentCardIndex}-${currentCard?.trimMm}-${currentCard?.bleedMm}-${currentCard?.hasBleed}-${globalBack.trimMm}-${globalBack.bleedMm}-${globalBack.hasBleed}`}
-                src={imageToShow}
-                alt="Card"
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 dark:text-slate-600 p-8 text-center group">
-                <Image className="w-12 h-12 mb-2 opacity-50" />
-                <p className="text-sm font-medium">
-                  {currentStep === 2 ? 'No Back Selected' : 'No Image Selected'}
-                </p>
-                <p className="text-xs opacity-75 mt-1">Upload an image to start</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                  ZIP/Postal Code *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.postal_code}
+                  onChange={(e) => setFormData({ ...formData, postal_code: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none touch-manipulation"
+                  placeholder="10001"
+                  autoComplete="postal-code"
+                />
               </div>
-            )}
-          </div>
-        </div>
+              <div>
+                <label className="block text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 sm:mb-2">
+                  Country *
+                </label>
+                <select
+                  required
+                  value={formData.country}
+                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-2 text-base sm:text-sm border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none touch-manipulation"
+                  autoComplete="country"
+                >
+                  <option value="">Select Country</option>
+                  <option value="US">United States</option>
+                  <option value="CA">Canada</option>
+                  <option value="GB">United Kingdom</option>
+                  <option value="AU">Australia</option>
+                  <option value="DE">Germany</option>
+                  <option value="FR">France</option>
+                  <option value="OTHER">Other (International)</option>
+                </select>
+              </div>
+            </div>
 
-        {currentCard && currentStep === 1 && (
-          <div className="mt-4 sm:mt-6 flex justify-center gap-3 z-20">
-            {currentCard.printsUri && (
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  window.dispatchEvent(new CustomEvent('openVersionsModal', { detail: { index: currentCardIndex } }))
-                }}
-                className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-4 sm:px-5 py-2.5 rounded-lg text-xs sm:text-sm font-bold shadow-sm flex items-center gap-2 transition-colors border border-blue-700/20 touch-manipulation min-h-[44px]"
+            <div className="pt-3 sm:pt-4">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-4 sm:px-6 py-3 sm:py-3.5 text-base sm:text-sm rounded-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600 touch-manipulation min-h-[48px]"
               >
-                <Image className="w-4 h-4" /> Change Art
+                <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
+                <span>{isSubmitting ? 'Processing...' : 'Proceed to Payment'}</span>
               </button>
-            )}
-          </div>
-        )}
+              <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 text-center mt-2">
+                Secure payment powered by Stripe
+              </p>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   )
