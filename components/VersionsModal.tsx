@@ -51,7 +51,7 @@ export default function VersionsModal() {
         fetchVersions(card.printsUri)
       } else {
         setVersions([])
-        setError('No versions available for this card')
+        setError('Alternative art versions are only available for cards imported from Scryfall. To change the art for manually uploaded images, please upload a new image via the sidebar.')
       }
     }
   }, [isOpen, activeVersionIndex, deck])
