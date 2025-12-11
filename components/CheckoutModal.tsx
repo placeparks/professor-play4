@@ -84,10 +84,11 @@ export default function CheckoutModal() {
       })
 
       // Collect mask images - masks are saved as separate image files
-      const maskImages: string[] = []
+      // Always include masks (even if null) to maintain array pattern
+      const maskImages: (string | null)[] = []
       deck.forEach((card) => {
         const maskImg = card.silverMask || null
-        if (maskImg) maskImages.push(maskImg)
+        maskImages.push(maskImg) // Always add, even if null
       })
 
       // Prepare card data WITHOUT base64 images (we'll upload separately and use URLs)
@@ -113,11 +114,14 @@ export default function CheckoutModal() {
 
       // Combine all images in order: [front1, back1, mask1, front2, back2, mask2, ...]
       // Masks are included as separate images alongside fronts and backs
+      // Always maintain the pattern: front, back, mask for each card
       const allImages: string[] = []
       for (let i = 0; i < frontImages.length; i++) {
-        if (frontImages[i]) allImages.push(frontImages[i])
-        if (backImages[i]) allImages.push(backImages[i])
-        if (maskImages[i]) allImages.push(maskImages[i])
+        // Always push in order: front, back, mask
+        // Only push actual images (not null/empty), but track pattern via cardData
+        allImages.push(frontImages[i]) // Front (required)
+        allImages.push(backImages[i] || '') // Back (may be empty string if no back)
+        allImages.push(maskImages[i] || '') // Mask (may be empty string if no mask)
       }
 
       // Check total payload size with base64
@@ -148,6 +152,11 @@ export default function CheckoutModal() {
         console.log('🗜️ Compressing images to reduce payload size...')
         const compressedImages: string[] = []
         for (let i = 0; i < allImages.length; i++) {
+          // Skip compression for empty strings (placeholders for missing backs/masks)
+          if (!allImages[i] || allImages[i] === '') {
+            compressedImages.push('')
+            continue
+          }
           console.log(`🗜️ Compressing image ${i + 1}/${allImages.length}...`)
           const compressed = await compressImage(allImages[i], 0.8) // Max 0.8MB per image
           compressedImages.push(compressed)
