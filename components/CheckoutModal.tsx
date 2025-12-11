@@ -73,7 +73,7 @@ export default function CheckoutModal() {
     setIsSubmitting(true)
 
     try {
-      // Prepare card images organized properly (front/back pairs)
+      // Prepare card images organized properly (front/back/mask triplets)
       const frontImages = deck.map(card => card.front || card.originalFront).filter(Boolean) as string[]
       
       // Collect back images - use card-specific back, or global back, or null
@@ -83,28 +83,41 @@ export default function CheckoutModal() {
         if (backImg) backImages.push(backImg)
       })
 
+      // Collect mask images - masks are saved as separate image files
+      const maskImages: string[] = []
+      deck.forEach((card) => {
+        const maskImg = card.silverMask || null
+        if (maskImg) maskImages.push(maskImg)
+      })
+
       // Prepare card data WITHOUT base64 images (we'll upload separately and use URLs)
       // Base64 images are included separately in allImages array
       const cardData = deck.map((card) => ({
+        id: card.id, // Include card ID
         quantity: card.quantity || 1,
         trimMm: card.trimMm || 0,
         bleedMm: card.bleedMm || 2,
         hasBleed: card.hasBleed || false,
         finish: card.finish || 'standard', // Include finish/effects (standard, rainbow, gloss, silver, etc.)
-        silverMask: card.silverMask || null, // Include silver mask if available
+        silverMask: card.silverMask || null, // Include silver mask if available (will be replaced with URL after upload)
         maskingColors: card.maskingColors || [], // Include masking colors if available
         maskingTolerance: card.maskingTolerance || null, // Include masking tolerance if available
+        printsUri: card.printsUri || null, // Include Scryfall prints URI if available
+        originalFront: null, // Don't save original base64 (too large)
+        originalBack: null, // Don't save original base64 (too large)
         // Don't include base64 images here - they're in allImages array
         // After upload, URLs will be added to cardData
         front: null,
         back: null
       }))
 
-      // Combine all images in order: [front1, back1, front2, back2, ...]
+      // Combine all images in order: [front1, back1, mask1, front2, back2, mask2, ...]
+      // Masks are included as separate images alongside fronts and backs
       const allImages: string[] = []
       for (let i = 0; i < frontImages.length; i++) {
         if (frontImages[i]) allImages.push(frontImages[i])
         if (backImages[i]) allImages.push(backImages[i])
+        if (maskImages[i]) allImages.push(maskImages[i])
       }
 
       // Check total payload size with base64
