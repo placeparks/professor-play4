@@ -75,20 +75,24 @@ export default function PreviewGrid() {
                       {cardGroup.front && (
                         <>
                           <img src={cardGroup.front} className="w-full h-full object-cover" alt={`Card ${visualIndex}`} />
-                          {cardGroup.finish && cardGroup.finish.includes('silver') && cardGroup.silverMask && (
-                            <div
-                              className="finish-silver"
-                              style={{
-                                WebkitMaskImage: `url(${cardGroup.silverMask})`,
-                                maskImage: `url(${cardGroup.silverMask})`,
-                              }}
-                            />
-                          )}
-                          {cardGroup.finish && cardGroup.finish.includes('rainbow') && (
-                            <div className="finish-rainbow" />
-                          )}
-                          {cardGroup.finish && cardGroup.finish.includes('gloss') && !cardGroup.finish.includes('rainbow') && (
-                            <div className="finish-gloss" />
+                          {cardGroup.finish && (
+                            <div className="absolute inset-0 pointer-events-none">
+                              {cardGroup.finish.includes('silver') && cardGroup.silverMask && (
+                                <div
+                                  className="finish-silver absolute inset-0"
+                                  style={{
+                                    WebkitMaskImage: `url(${cardGroup.silverMask})`,
+                                    maskImage: `url(${cardGroup.silverMask})`,
+                                  }}
+                                />
+                              )}
+                              {cardGroup.finish.includes('rainbow') && (
+                                <div className="finish-rainbow absolute inset-0" />
+                              )}
+                              {cardGroup.finish.includes('gloss') && !cardGroup.finish.includes('rainbow') && (
+                                <div className="finish-gloss absolute inset-0" />
+                              )}
+                            </div>
                           )}
                         </>
                       )}
