@@ -135,12 +135,14 @@ async function uploadImagesToStorage(
     }
 
     // Upload silver mask if present
-    if (card.silverMask && typeof card.silverMask === 'string') {
+    if (card.silverMask && typeof card.silverMask === 'string' && card.silverMask.trim() !== '') {
       try {
         // Skip if already a URL (not base64)
         if (card.silverMask.startsWith('http')) {
+          console.log(`✅ Mask for card ${cardIndex + 1} already a URL, skipping upload`)
           maskUrls.push(card.silverMask)
         } else {
+          console.log(`📤 Uploading mask for card ${cardIndex + 1}...`)
           // Convert base64 to buffer
           const buffer = base64ToBuffer(card.silverMask)
           const extension = getExtensionFromBase64(card.silverMask)
@@ -155,7 +157,7 @@ async function uploadImagesToStorage(
             })
           
           if (error) {
-            console.error(`Error uploading mask for card ${cardIndex + 1}:`, error)
+            console.error(`❌ Error uploading mask for card ${cardIndex + 1}:`, error)
             maskUrls.push(null)
           } else {
             // Get public URL
@@ -164,17 +166,20 @@ async function uploadImagesToStorage(
               .getPublicUrl(filePath)
             
             if (urlData?.publicUrl) {
+              console.log(`✅ Mask uploaded for card ${cardIndex + 1}: ${filePath}`)
               maskUrls.push(urlData.publicUrl)
             } else {
+              console.warn(`⚠️ No public URL for mask ${cardIndex + 1}`)
               maskUrls.push(null)
             }
           }
         }
       } catch (error) {
-        console.error(`Error processing mask for card ${cardIndex + 1}:`, error)
+        console.error(`❌ Error processing mask for card ${cardIndex + 1}:`, error)
         maskUrls.push(null)
       }
     } else {
+      console.log(`ℹ️ No mask for card ${cardIndex + 1} (silverMask: ${card.silverMask ? 'exists but empty' : 'null/undefined'})`)
       maskUrls.push(null)
     }
   }
@@ -434,9 +439,15 @@ export async function POST(req: NextRequest) {
         // Prepare card data with front, back, and mask images for upload
         const cardDataForUpload = cardData.map((card: any, index: number) => {
           const { front, back, mask } = extractImages(index)
+          // Log mask extraction for debugging
+          if (mask) {
+            console.log(`📋 Card ${index + 1} mask found in array: ${mask.substring(0, 50)}...`)
+          } else {
+            console.log(`📋 Card ${index + 1} no mask in array, checking card.silverMask: ${card.silverMask ? 'exists' : 'null'}`)
+          }
           return {
-            front: front,
-            back: back,
+            front: front || null,
+            back: back || null,
             silverMask: mask || card.silverMask || null // Use mask from array, fallback to card.silverMask
           }
         })
