@@ -144,8 +144,10 @@ async function uploadImagesToStorage(
         } else {
           console.log(`📤 Uploading mask for card ${cardIndex + 1}...`)
           // Convert base64 to buffer
+          // Masks should always be PNG to preserve transparency
           const buffer = base64ToBuffer(card.silverMask)
-          const extension = getExtensionFromBase64(card.silverMask)
+          // Force PNG extension for masks to ensure transparency is preserved
+          const extension = 'png'
           const filePath = `${cardFolder}/mask.${extension}`
           
           // Upload to Supabase Storage
