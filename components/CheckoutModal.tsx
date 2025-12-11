@@ -74,21 +74,33 @@ export default function CheckoutModal() {
 
     try {
       // Prepare card images organized properly (front/back/mask triplets)
-      const frontImages = deck.map(card => card.front || card.originalFront).filter(Boolean) as string[]
-      
-      // Collect back images - use card-specific back, or global back, or null
+      // Ensure arrays match deck length exactly - one entry per card
+      const frontImages: string[] = []
       const backImages: string[] = []
-      deck.forEach((card) => {
-        const backImg = card.back || card.originalBack || globalBack.processed || globalBack.original
-        if (backImg) backImages.push(backImg)
-      })
-
-      // Collect mask images - masks are saved as separate image files
-      // Always include masks (even if null) to maintain array pattern
       const maskImages: (string | null)[] = []
-      deck.forEach((card) => {
+      
+      deck.forEach((card, index) => {
+        // Front image (required) - this should be the card front
+        const frontImg = card.front || card.originalFront
+        frontImages.push(frontImg || '')
+        
+        // Back image - use card-specific back, or global back, or empty
+        // IMPORTANT: Make sure we're getting the back, not the front
+        const backImg = card.back || card.originalBack || globalBack.processed || globalBack.original
+        backImages.push(backImg || '')
+        
+        // Mask image - always include (even if null) to maintain array pattern
         const maskImg = card.silverMask || null
-        maskImages.push(maskImg) // Always add, even if null
+        maskImages.push(maskImg)
+        
+        // Debug logging to verify front/back are correct
+        console.log(`🃏 Card ${index + 1} image collection:`, {
+          hasFront: !!frontImg,
+          hasBack: !!backImg,
+          hasMask: !!maskImg,
+          frontSource: card.front ? 'card.front' : (card.originalFront ? 'card.originalFront' : 'none'),
+          backSource: card.back ? 'card.back' : (card.originalBack ? 'card.originalBack' : (globalBack.processed ? 'globalBack.processed' : (globalBack.original ? 'globalBack.original' : 'none')))
+        })
       })
 
       // Prepare card data WITHOUT base64 images (we'll upload separately and use URLs)
@@ -115,11 +127,12 @@ export default function CheckoutModal() {
       // Combine all images in order: [front1, back1, mask1, front2, back2, mask2, ...]
       // Masks are included as separate images alongside fronts and backs
       // Always maintain the pattern: front, back, mask for each card
+      // All arrays should have the same length as deck.length
       const allImages: string[] = []
-      for (let i = 0; i < frontImages.length; i++) {
+      for (let i = 0; i < deck.length; i++) {
         // Always push in order: front, back, mask
-        // Only push actual images (not null/empty), but track pattern via cardData
-        allImages.push(frontImages[i]) // Front (required)
+        // Use empty string for missing images to maintain array structure
+        allImages.push(frontImages[i] || '') // Front (required, but use empty string if missing)
         allImages.push(backImages[i] || '') // Back (may be empty string if no back)
         allImages.push(maskImages[i] || '') // Mask (may be empty string if no mask)
       }
@@ -146,7 +159,9 @@ export default function CheckoutModal() {
         // Generate temp order ID
         const tempOrderId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
 
-        console.log(`📦 Total images to upload: ${allImages.length} (${frontImages.length} fronts, ${backImages.length} backs)`)
+        // Count non-empty masks
+        const maskCount = maskImages.filter(m => m && m.trim() !== '').length
+        console.log(`📦 Total images to upload: ${allImages.length} (${frontImages.length} fronts, ${backImages.length} backs, ${maskCount} masks)`)
 
         // Compress images before upload to reduce payload size
         console.log('🗜️ Compressing images to reduce payload size...')
@@ -157,14 +172,26 @@ export default function CheckoutModal() {
             compressedImages.push('')
             continue
           }
-          console.log(`🗜️ Compressing image ${i + 1}/${allImages.length}...`)
-          const compressed = await compressImage(allImages[i], 0.8) // Max 0.8MB per image
-          compressedImages.push(compressed)
+          
+          // Check if this is a mask image (every 3rd image starting from index 2: 2, 5, 8, ...)
+          // Masks must remain PNG to preserve transparency - don't compress them
+          const isMask = (i % 3) === 2
+          
+          if (isMask) {
+            console.log(`🖼️ Skipping compression for mask ${Math.floor(i / 3) + 1} (must preserve PNG transparency)`)
+            // Keep mask as-is (already PNG) - don't compress
+            compressedImages.push(allImages[i])
+          } else {
+            console.log(`🗜️ Compressing image ${i + 1}/${allImages.length}...`)
+            const compressed = await compressImage(allImages[i], 0.8) // Max 0.8MB per image
+            compressedImages.push(compressed)
+          }
         }
         console.log(`✅ Compressed ${compressedImages.length} images`)
 
-        // Upload in chunks of 2 images to stay under 4.5MB limit per request
-        const CHUNK_SIZE = 2 // 1 card per chunk (2 images = 1 front + 1 back pair)
+        // Upload in chunks of 3 images to stay under 4.5MB limit per request
+        // Each chunk = 1 card (front + back + mask)
+        const CHUNK_SIZE = 3 // 1 card per chunk (3 images = 1 front + 1 back + 1 mask)
         const totalChunks = Math.ceil(compressedImages.length / CHUNK_SIZE)
 
         for (let i = 0; i < compressedImages.length; i += CHUNK_SIZE) {
