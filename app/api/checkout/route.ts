@@ -387,16 +387,16 @@ export async function POST(req: NextRequest) {
       console.log('✅ Using pre-uploaded image URLs')
       allImageUrls = cardImages
       
-      // Extract front and back URLs from cardData if available
-      // Note: Masks should already be URLs if images were pre-uploaded
+      // Extract front, back, and mask URLs from cardData if available
+      // URLs are in order: [front1, back1, mask1, front2, back2, mask2, ...]
       if (cardData && cardData.length > 0) {
         processedCardData = cardData.map((card: any, index: number) => {
           // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
           const updatedCard = { ...card }
           
-          // URLs are in order: [front1, back1, front2, back2, ...]
-          const frontUrlIndex = index * 2
-          const backUrlIndex = index * 2 + 1
+          const frontUrlIndex = index * 3
+          const backUrlIndex = index * 3 + 1
+          const maskUrlIndex = index * 3 + 2
           
           if (allImageUrls[frontUrlIndex]) {
             updatedCard.frontUrl = allImageUrls[frontUrlIndex]
@@ -407,30 +407,37 @@ export async function POST(req: NextRequest) {
             updatedCard.backUrl = allImageUrls[backUrlIndex]
             backImageUrls.push(allImageUrls[backUrlIndex])
           }
+
+          // Extract mask URL from array (masks are saved as separate images)
+          if (allImageUrls[maskUrlIndex]) {
+            updatedCard.silverMask = allImageUrls[maskUrlIndex]
+          }
           
           return updatedCard
         })
       }
     } else if (cardData && cardData.length > 0 && supabase) {
       try {
-        // Extract front and back images from cardImages array
-        // cardImages is in order: [front1, back1, front2, back2, ...]
+        // Extract front, back, and mask images from cardImages array
+        // cardImages is in order: [front1, back1, mask1, front2, back2, mask2, ...]
         const extractImages = (index: number) => {
-          const frontIndex = index * 2
-          const backIndex = index * 2 + 1
+          const frontIndex = index * 3
+          const backIndex = index * 3 + 1
+          const maskIndex = index * 3 + 2
           return {
             front: (cardImages && cardImages[frontIndex]) || null,
-            back: (cardImages && cardImages[backIndex]) || null
+            back: (cardImages && cardImages[backIndex]) || null,
+            mask: (cardImages && cardImages[maskIndex]) || null
           }
         }
         
         // Prepare card data with front, back, and mask images for upload
         const cardDataForUpload = cardData.map((card: any, index: number) => {
-          const { front, back } = extractImages(index)
+          const { front, back, mask } = extractImages(index)
           return {
             front: front,
             back: back,
-            silverMask: card.silverMask || null
+            silverMask: mask || card.silverMask || null // Use mask from array, fallback to card.silverMask
           }
         })
         
@@ -442,14 +449,15 @@ export async function POST(req: NextRequest) {
         )
         allImageUrls = uploadResult.uploadedUrls
         
-        // Extract front and back URLs from the uploaded URLs and update mask URLs
+        // Extract front, back, and mask URLs from the uploaded URLs
         if (allImageUrls.length > 0) {
           processedCardData = cardData.map((card: any, index: number) => {
             // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
             const updatedCard = { ...card }
             
-            const frontUrlIndex = index * 2
-            const backUrlIndex = index * 2 + 1
+            const frontUrlIndex = index * 3
+            const backUrlIndex = index * 3 + 1
+            const maskUrlIndex = index * 3 + 2
             
             if (allImageUrls[frontUrlIndex]) {
               updatedCard.frontUrl = allImageUrls[frontUrlIndex]
@@ -465,12 +473,15 @@ export async function POST(req: NextRequest) {
             // Each mask gets its own URL: {orderId}/{timestamp}/{addressHash}/card-{index}/mask.{extension}
             if (uploadResult.maskUrls[index]) {
               updatedCard.silverMask = uploadResult.maskUrls[index]
+            } else if (allImageUrls[maskUrlIndex]) {
+              // Fallback: if mask was in the array but not in maskUrls, use the URL from array
+              updatedCard.silverMask = allImageUrls[maskUrlIndex]
             }
             
             return updatedCard
           })
           
-          console.log(`✅ Uploaded ${allImageUrls.length} images and ${uploadResult.maskUrls.filter(Boolean).length} masks to storage`)
+          console.log(`✅ Uploaded ${allImageUrls.length} images (fronts, backs, masks) to storage`)
         }
       } catch (uploadError: any) {
         console.error('⚠️ Error uploading images to storage (continuing with base64):', uploadError.message)
