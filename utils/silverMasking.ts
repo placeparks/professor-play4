@@ -94,7 +94,8 @@ export function generateSilverMask(
     }
 
     ctx.putImageData(imgData, 0, 0)
-    const maskUrl = canvas.toDataURL()
+    // Always use PNG format to preserve transparency in masks
+    const maskUrl = canvas.toDataURL('image/png')
     callback(maskUrl)
   }
 
