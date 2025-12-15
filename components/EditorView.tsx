@@ -41,7 +41,10 @@ export default function EditorView() {
     const baseH = 88
     
     // Calculate total canvas size in "units" (base + bleed)
-    const activeBleed = target.hasBleed ? (target.bleedMm !== undefined ? target.bleedMm : 1.75) : 0
+    // For positive bleed: canvas expands outward
+    // For negative bleed (cropping): canvas stays at base size (we're zooming/cropping the image)
+    const rawBleed = target.hasBleed ? (target.bleedMm !== undefined ? target.bleedMm : 1.75) : 0
+    const activeBleed = Math.max(0, rawBleed) // Canvas only expands, never shrinks below base size
     
     const totalW = baseW + (2 * activeBleed)
     const totalH = baseH + (2 * activeBleed)
