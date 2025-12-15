@@ -25,58 +25,95 @@ export function processImage(
     const DPI = 300
     const mmToPx = (mm: number) => Math.floor(mm * DPI / 25.4)
     
-    const baseWidth = 750
-    const baseHeight = 1050
+    // Standard card dimensions: 63mm × 88mm at 300 DPI
+    const baseWidth = 750  // 63mm at 300 DPI
+    const baseHeight = 1050 // 88mm at 300 DPI
     
-    const targetBleedMm = 1.75
-    const targetBleedPx = mmToPx(targetBleedMm)
-
-    canvas.width = baseWidth + (targetBleedPx * 2)
-    canvas.height = baseHeight + (targetBleedPx * 2)
+    // Use the actual bleedMm value for canvas size when adding bleed
+    // This allows the bleed to expand outward while keeping cut lines in place
+    const activeBleedMm = addBleed && bleedMm > 0 ? bleedMm : 0
+    const activeBleedPx = mmToPx(activeBleedMm)
+    
+    // Canvas size includes the bleed area on all sides
+    canvas.width = baseWidth + (activeBleedPx * 2)
+    canvas.height = baseHeight + (activeBleedPx * 2)
 
     const trimPx = mmToPx(trimMm)
 
     if (addBleed) {
       if (bleedMm > 0) {
-        const dx = targetBleedPx
-        const dy = targetBleedPx
-        const dw = baseWidth
-        const dh = baseHeight
+        // EXPANDING BLEED: Extend edges outward by the specified bleedMm amount
+        // The original image is drawn at the center (63×88mm area)
+        // The bleed area extends outward from the edges
+        
+        const dx = activeBleedPx  // X offset where card content starts
+        const dy = activeBleedPx  // Y offset where card content starts
+        const dw = baseWidth      // Card width (63mm)
+        const dh = baseHeight     // Card height (88mm)
 
+        // Draw the original image into the card area (center of canvas)
         ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh)
 
+        // Sample colors from inside the trim area for corner fills
+        // This avoids sampling from potentially white/empty corners
         const getSafeColor = (x: number, y: number) => {
           const pixel = ctx.getImageData(dx + x, dy + y, 1, 1).data
           return `rgba(${pixel[0]},${pixel[1]},${pixel[2]},${pixel[3]/255})`
         }
 
+        // Get corner colors (sampled from inside the trim boundary)
         const colorTL = getSafeColor(trimPx, trimPx)
         const colorTR = getSafeColor(dw - trimPx - 1, trimPx)
         const colorBL = getSafeColor(trimPx, dh - trimPx - 1)
         const colorBR = getSafeColor(dw - trimPx - 1, dh - trimPx - 1)
 
+        // Fill corner regions of the bleed area with sampled colors
+        // Top-left corner
         ctx.fillStyle = colorTL
         ctx.fillRect(0, 0, dx + trimPx, dy + trimPx)
+        // Top-right corner
         ctx.fillStyle = colorTR
-        ctx.fillRect(dx + dw - trimPx, 0, targetBleedPx + trimPx, dy + trimPx)
+        ctx.fillRect(dx + dw - trimPx, 0, activeBleedPx + trimPx, dy + trimPx)
+        // Bottom-left corner
         ctx.fillStyle = colorBL
-        ctx.fillRect(0, dy + dh - trimPx, dx + trimPx, targetBleedPx + trimPx)
+        ctx.fillRect(0, dy + dh - trimPx, dx + trimPx, activeBleedPx + trimPx)
+        // Bottom-right corner
         ctx.fillStyle = colorBR
-        ctx.fillRect(dx + dw - trimPx, dy + dh - trimPx, targetBleedPx + trimPx, targetBleedPx + trimPx)
+        ctx.fillRect(dx + dw - trimPx, dy + dh - trimPx, activeBleedPx + trimPx, activeBleedPx + trimPx)
 
-        ctx.drawImage(canvas, dx + trimPx, dy, dw - 2*trimPx, 1, dx + trimPx, 0, dw - 2*trimPx, targetBleedPx)
-        ctx.drawImage(canvas, dx + trimPx, dy + dh - 1, dw - 2*trimPx, 1, dx + trimPx, dy + dh, dw - 2*trimPx, targetBleedPx)
-        ctx.drawImage(canvas, dx, dy + trimPx, 1, dh - 2*trimPx, 0, dy + trimPx, targetBleedPx, dh - 2*trimPx)
-        ctx.drawImage(canvas, dx + dw - 1, dy + trimPx, 1, dh - 2*trimPx, dx + dw, dy + trimPx, targetBleedPx, dh - 2*trimPx)
-      } else {
+        // Extend edges outward by copying 1-pixel strips from the image edges
+        // Top edge: copy row at y=dy (top of card) and stretch it up into bleed area
+        ctx.drawImage(canvas, dx + trimPx, dy, dw - 2*trimPx, 1, dx + trimPx, 0, dw - 2*trimPx, activeBleedPx)
+        // Bottom edge: copy row at y=dy+dh-1 (bottom of card) and stretch it down
+        ctx.drawImage(canvas, dx + trimPx, dy + dh - 1, dw - 2*trimPx, 1, dx + trimPx, dy + dh, dw - 2*trimPx, activeBleedPx)
+        // Left edge: copy column at x=dx (left of card) and stretch it left
+        ctx.drawImage(canvas, dx, dy + trimPx, 1, dh - 2*trimPx, 0, dy + trimPx, activeBleedPx, dh - 2*trimPx)
+        // Right edge: copy column at x=dx+dw-1 (right of card) and stretch it right
+        ctx.drawImage(canvas, dx + dw - 1, dy + trimPx, 1, dh - 2*trimPx, dx + dw, dy + trimPx, activeBleedPx, dh - 2*trimPx)
+      } else if (bleedMm < 0) {
+        // NEGATIVE BLEED (CROPPING): Zoom into the image
+        // This is for images that already have bleed and need to be trimmed
+        // Canvas stays at base size (no bleed extension)
+        canvas.width = baseWidth
+        canvas.height = baseHeight
+        
         const cropAmountPx = Math.abs(mmToPx(bleedMm))
+        // Draw the image larger than canvas, cropping the edges
         const finalX = -cropAmountPx
         const finalY = -cropAmountPx
         const finalW = canvas.width + (cropAmountPx * 2)
         const finalH = canvas.height + (cropAmountPx * 2)
         ctx.drawImage(img, 0, 0, img.width, img.height, finalX, finalY, finalW, finalH)
+      } else {
+        // bleedMm === 0: No bleed adjustment
+        canvas.width = baseWidth
+        canvas.height = baseHeight
+        ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height)
       }
     } else {
+      // addBleed is false: No bleed processing, just resize to base dimensions
+      canvas.width = baseWidth
+      canvas.height = baseHeight
       ctx.drawImage(img, 0, 0, img.width, img.height, 0, 0, canvas.width, canvas.height)
     }
 
@@ -117,4 +154,3 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } | nul
     b: parseInt(result[3], 16)
   } : null
 }
-
