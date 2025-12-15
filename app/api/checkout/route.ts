@@ -534,8 +534,9 @@ export async function POST(req: NextRequest) {
           if (uploadResult.uploadedUrls[backIndex]) {
             allImageUrls.push(uploadResult.uploadedUrls[backIndex])
           }
-          if (uploadResult.maskUrls[i]) {
-            allImageUrls.push(uploadResult.maskUrls[i])
+          const maskUrl = uploadResult.maskUrls[i]
+          if (typeof maskUrl === 'string' && maskUrl.length > 0) {
+            allImageUrls.push(maskUrl)
           }
         }
         
