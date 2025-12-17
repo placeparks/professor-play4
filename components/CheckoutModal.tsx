@@ -137,15 +137,26 @@ export default function CheckoutModal() {
         allImages.push(maskImages[i] || '') // Mask (may be empty string if no mask)
       }
 
-      // Check total payload size with base64
+      // Estimate payload size WITHOUT JSON.stringifying the full payload (can throw "Invalid string length" for large decks)
+      // This is only used for logging/debugging.
+      const approxImagesBytes = allImages.reduce((acc, s) => acc + (s ? s.length : 0), 0)
+      let approxCardDataBytes = 0
+      try {
+        approxCardDataBytes = JSON.stringify(cardData).length
+      } catch {
+        approxCardDataBytes = 0
+      }
+      const payloadSizeMB = ((approxImagesBytes + approxCardDataBytes) / (1024 * 1024)).toFixed(2)
+      console.log(`📊 Estimated payload size (approx): ${payloadSizeMB} MB`)
+
+      // Keep the full payload object for the small-payload fallback path below.
+      // Note: we intentionally do NOT JSON.stringify this here (can be huge and throw).
       const testPayload = {
         quantity,
         shippingAddress: formData,
         cardImages: allImages,
         cardData
       }
-      const payloadSizeMB = (new Blob([JSON.stringify(testPayload)]).size / (1024 * 1024)).toFixed(2)
-      console.log(`📊 Estimated payload size: ${payloadSizeMB} MB`)
 
       let uploadedImageUrls: string[] = []
 
