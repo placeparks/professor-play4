@@ -4,6 +4,9 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'TCGPlaytest | Custom Card Printing USA',
   description: 'Design and print your custom card games and TCG prototypes with TCGPlaytest.',
+  icons: {
+    icon: '/favicon.ico',
+  },
   viewport: {
     width: 'device-width',
     initialScale: 1,
