@@ -56,13 +56,13 @@ export default function Navigation({
             />
           </div>
 
-          {/* Wordmark (kept compact for mobile) */}
-          <div className="relative h-6 sm:h-7 w-[130px] sm:w-[170px] max-w-[55vw]">
+          {/* Wordmark (larger on desktop, compact on mobile) */}
+          <div className="relative h-6 sm:h-7 md:h-8 lg:h-9 w-[130px] sm:w-[170px] md:w-[230px] lg:w-[280px] max-w-[55vw] md:max-w-none">
             <Image
               src="/card-logo.jpg"
               alt="TCGPlaytest"
               fill
-              sizes="(max-width: 640px) 130px, 170px"
+              sizes="(max-width: 640px) 130px, (max-width: 768px) 170px, (max-width: 1024px) 230px, 280px"
               className="object-contain object-left"
               priority
             />
