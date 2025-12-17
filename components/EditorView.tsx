@@ -39,31 +39,31 @@ export default function EditorView() {
     // Standard TCG Dimensions
     const baseW = 63
     const baseH = 88
-    
+
     // Calculate total canvas size in "units" (base + bleed)
     // For positive bleed: canvas expands outward
     // For negative bleed (cropping): canvas stays at base size (we're zooming/cropping the image)
-    const rawBleed = target.hasBleed ? (target.bleedMm !== undefined ? target.bleedMm : 1.75) : 0
+    const rawBleed = target.hasBleed ? (target.bleedMm !== undefined ? target.bleedMm : 1.9) : 0
     const activeBleed = Math.max(0, rawBleed) // Canvas only expands, never shrinks below base size
-    
+
     const totalW = baseW + (2 * activeBleed)
     const totalH = baseH + (2 * activeBleed)
-    
+
     // Update canvas aspect ratio to expand when bleed is enabled
     canvas.style.aspectRatio = `${totalW} / ${totalH}`
     // Ensure canvas is visible
     canvas.style.display = ''
     canvas.style.visibility = 'visible'
-    
+
     // Calculate cut line position (63x88mm boundary)
     const cutInsetX = (activeBleed / totalW) * 100
     const cutInsetY = (activeBleed / totalH) * 100
-    
+
     cutLine.style.left = `${cutInsetX}%`
     cutLine.style.right = `${cutInsetX}%`
     cutLine.style.top = `${cutInsetY}%`
     cutLine.style.bottom = `${cutInsetY}%`
-    
+
     // Show cut line when bleed is enabled
     if (target.hasBleed) {
       cutLine.classList.remove('hidden')
@@ -194,7 +194,7 @@ export default function EditorView() {
 
         {currentCard && currentStep === 1 && (
           <div className="mt-4 sm:mt-6 flex justify-center gap-3 z-20">
-            <button 
+            <button
               onClick={(e) => {
                 e.stopPropagation()
                 window.dispatchEvent(new CustomEvent('openVersionsModal', { detail: { index: currentCardIndex } }))
