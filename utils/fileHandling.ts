@@ -33,7 +33,7 @@ export async function handleFiles(
           resolve()
           return
         }
-        processImage(original, 2.5, 1.75, false, (processed) => {
+        processImage(original, 2.5, 1.9, false, (processed) => {
           const newCard: Card = {
             id: String(Date.now() + Math.random()),
             originalFront: original,
@@ -41,7 +41,7 @@ export async function handleFiles(
             back: null,
             originalBack: null,
             trimMm: 2.5,
-            bleedMm: 1.75,
+            bleedMm: 1.9,
             hasBleed: false,
             finish: 'standard',
             quantity: 1,
