@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useRef, useState, useEffect } from 'react'
 import { X, ShoppingCart, Lock } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
 import { updateDeckStats } from '@/utils/deckStats'
@@ -10,6 +10,12 @@ export default function CheckoutModal() {
   const [isOpen, setIsOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { deck, globalBack } = useApp()
+
+  // User-facing progress UI for long operations (compression + upload + redirect)
+  const [progressText, setProgressText] = useState<string>('')
+  const [progressPct, setProgressPct] = useState<number>(0)
+  const [progressSubtext, setProgressSubtext] = useState<string>('')
+  const lastUiUpdateRef = useRef<number>(0)
 
   const [formData, setFormData] = useState({
     email: '',
@@ -71,6 +77,9 @@ export default function CheckoutModal() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setProgressText('Preparing your order…')
+    setProgressPct(2)
+    setProgressSubtext('We truly care about the quality of your cards. Thanks for your patience.')
 
     try {
       // Concurrency helper to speed up compression + uploads without overwhelming the browser/network
@@ -206,8 +215,34 @@ export default function CheckoutModal() {
         const COMPRESS_CONCURRENCY = 3
         const UPLOAD_CONCURRENCY = 4
 
+        const compressDoneRef = { current: 0 }
+        const uploadDoneRef = { current: 0 }
+        const maybeUpdateUi = (phase: 'compress' | 'upload') => {
+          const now = Date.now()
+          if (now - lastUiUpdateRef.current < 200) return
+          lastUiUpdateRef.current = now
+
+          const compressed = compressDoneRef.current
+          const uploaded = uploadDoneRef.current
+
+          if (phase === 'compress') {
+            const pct = totalChunks > 0 ? Math.round((compressed / totalChunks) * 50) : 0
+            setProgressText(`Preparing your artwork… (${compressed}/${totalChunks} cards)`)
+            setProgressPct(Math.min(50, Math.max(5, pct)))
+            setProgressSubtext('We’re optimizing files for a fast, reliable upload—your print quality stays the same.')
+          } else {
+            const pct = totalChunks > 0 ? 50 + Math.round((uploaded / totalChunks) * 48) : 50
+            setProgressText(`Uploading images… (${uploaded}/${totalChunks} cards)`)
+            setProgressPct(Math.min(98, Math.max(50, pct)))
+            setProgressSubtext('Hang tight—large orders can take a couple minutes. We’re working as fast as we can.')
+          }
+        }
+
         // Compress fronts/backs for each chunk (skip masks; keep PNG) with limited concurrency
         console.log('🗜️ Compressing images to reduce payload size (parallel)...')
+        setProgressText(`Preparing your artwork… (0/${totalChunks} cards)`)
+        setProgressPct(5)
+        setProgressSubtext('We’re optimizing files for a fast, reliable upload—your print quality stays the same.')
         const compressedChunks = await mapWithConcurrency(indices, COMPRESS_CONCURRENCY, async (chunkIdx) => {
           const start = chunkIdx * CHUNK_SIZE
           const chunk = allImages.slice(start, start + CHUNK_SIZE)
@@ -231,10 +266,15 @@ export default function CheckoutModal() {
           // Masks must remain PNG for transparency; do not compress
           const finalMask = mask && mask.trim() !== '' ? mask : ''
 
+          compressDoneRef.current += 1
+          maybeUpdateUi('compress')
           return [compressedFront, compressedBack, finalMask]
         })
 
         console.log(`✅ Compression done for ${compressedChunks.length} cards`)
+        setProgressText(`Uploading images… (0/${totalChunks} cards)`)
+        setProgressPct(50)
+        setProgressSubtext('Hang tight—large orders can take a couple minutes. We’re working as fast as we can.')
 
         console.log(`📤 Uploading ${compressedChunks.length} cards (parallel)...`)
         const uploadedChunkResults = await mapWithConcurrency(indices, UPLOAD_CONCURRENCY, async (chunkIdx) => {
@@ -276,6 +316,8 @@ export default function CheckoutModal() {
               console.warn(`⚠️ Upload for card ${chunkNum} returned ${imageUrls.length} urls; expected 3.`, imageUrls)
             }
 
+            uploadDoneRef.current += 1
+            maybeUpdateUi('upload')
             return imageUrls
           } catch (uploadError: any) {
             console.error(`❌ Error uploading card ${chunkNum}:`, uploadError)
@@ -314,6 +356,9 @@ export default function CheckoutModal() {
         const checkoutPayloadSize = (new Blob([JSON.stringify(checkoutPayload)]).size / (1024 * 1024)).toFixed(2)
         console.log(`📊 Checkout payload size with URLs: ${checkoutPayloadSize} MB`)
 
+        setProgressText('Creating secure Stripe checkout…')
+        setProgressPct(99)
+        setProgressSubtext('Almost there—securely connecting you to Stripe.')
         const response = await fetch('/api/checkout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -334,6 +379,9 @@ export default function CheckoutModal() {
         const data = await response.json()
 
         if (data.url) {
+          setProgressText('Redirecting to Stripe…')
+          setProgressPct(100)
+          setProgressSubtext('You’ll be redirected automatically.')
           window.location.href = data.url
         } else {
           throw new Error('No checkout URL received')
@@ -341,6 +389,9 @@ export default function CheckoutModal() {
       } else {
         // Payload is small enough, send directly
         console.log(`✅ Payload size OK (${payloadSizeMB} MB), sending directly to checkout`)
+        setProgressText('Creating secure Stripe checkout…')
+        setProgressPct(70)
+        setProgressSubtext('Almost there—securely connecting you to Stripe.')
 
         const response = await fetch('/api/checkout', {
           method: 'POST',
@@ -362,6 +413,9 @@ export default function CheckoutModal() {
         const data = await response.json()
 
         if (data.url) {
+          setProgressText('Redirecting to Stripe…')
+          setProgressPct(100)
+          setProgressSubtext('You’ll be redirected automatically.')
           window.location.href = data.url
         } else {
           throw new Error('No checkout URL received')
@@ -371,6 +425,9 @@ export default function CheckoutModal() {
       console.error('Checkout error:', error)
       alert('Checkout failed: ' + error.message)
       setIsSubmitting(false)
+      setProgressText('')
+      setProgressPct(0)
+      setProgressSubtext('')
     }
   }
 
@@ -557,8 +614,25 @@ export default function CheckoutModal() {
                 className="w-full bg-green-600 hover:bg-green-700 active:bg-green-800 text-white px-4 sm:px-6 py-3 sm:py-3.5 text-base sm:text-sm rounded-lg font-bold shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600 touch-manipulation min-h-[48px]"
               >
                 <Lock className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>{isSubmitting ? 'Processing...' : 'Proceed to Payment'}</span>
+                <span>{isSubmitting ? 'Processing…' : 'Proceed to Payment'}</span>
               </button>
+              {isSubmitting && (
+                <div className="mt-3 space-y-2">
+                  <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>{progressText || 'Working…'}</span>
+                    <span className="font-mono">{Math.max(0, Math.min(100, progressPct))}%</span>
+                  </div>
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                    <div
+                      className="bg-green-600 h-2 rounded-full transition-all duration-200"
+                      style={{ width: `${Math.max(2, Math.min(100, progressPct))}%` }}
+                    />
+                  </div>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                    {progressSubtext || 'Thanks for your patience—we’re taking great care of your order.'}
+                  </p>
+                </div>
+              )}
               <p className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 text-center mt-2">
                 Secure payment powered by Stripe
               </p>
