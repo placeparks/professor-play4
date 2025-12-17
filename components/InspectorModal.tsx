@@ -139,7 +139,7 @@ export default function InspectorModal() {
     if (!currentCard) return
 
     // Get colors from parameter or current state, ensuring it's always an array
-    const colors = colorsToUse !== undefined 
+    const colors = colorsToUse !== undefined
       ? (Array.isArray(colorsToUse) ? colorsToUse : [])
       : (Array.isArray(maskingColors) ? maskingColors : [])
     const tolerance = toleranceToUse !== undefined ? toleranceToUse : maskingTolerance
@@ -173,7 +173,7 @@ export default function InspectorModal() {
         setMaskUpdated(false)
         return
       }
-      
+
       setDeck((prev) => {
         const newDeck = [...prev]
         if (newDeck[inspectorIndex]) {
@@ -243,7 +243,7 @@ export default function InspectorModal() {
     reader.onload = (event) => {
       const originalBack = (event.target?.result as string) || ''
       const currentCard = deck[inspectorIndex]
-      
+
       setDeck((prev) => {
         const newDeck = [...prev]
         newDeck[inspectorIndex] = {
@@ -257,7 +257,7 @@ export default function InspectorModal() {
       processImage(
         originalBack,
         currentCard.trimMm || 2.5,
-        currentCard.bleedMm || 1.75,
+        currentCard.bleedMm || 1.9,
         currentCard.hasBleed || false,
         (processed) => {
           setDeck((prev) => {
@@ -452,7 +452,7 @@ export default function InspectorModal() {
                     setDeck((prev) => {
                       const newDeck = [...prev]
                       const updatedCard = { ...newDeck[inspectorIndex], finish: newFinish }
-                      
+
                       // If switching TO silver, initialize masking
                       if (newFinish.includes('silver') && !updatedCard.maskingColors) {
                         updatedCard.maskingColors = []
@@ -467,7 +467,7 @@ export default function InspectorModal() {
                         setMaskingColors([])
                         setMaskingTolerance(15)
                       }
-                      
+
                       newDeck[inspectorIndex] = updatedCard
                       return newDeck
                     })
