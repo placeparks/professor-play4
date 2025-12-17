@@ -140,10 +140,10 @@ export async function processCardList(
         if (frontImgSrc) {
           await new Promise<void>(resolve => {
             const pFront = new Promise<string | null>(r =>
-              processImage(frontImgSrc!, 2.5, 1.75, false, r)
+              processImage(frontImgSrc!, 2.5, 1.9, false, r)
             )
             const pBack = backImgSrc
-              ? new Promise<string | null>(r => processImage(backImgSrc!, 2.5, 1.75, false, r))
+              ? new Promise<string | null>(r => processImage(backImgSrc!, 2.5, 1.9, false, r))
               : Promise.resolve<string | null>(null)
 
             Promise.all([pFront, pBack]).then(([processedFront, processedBack]) => {
@@ -161,7 +161,7 @@ export async function processCardList(
                   back: processedBack,
                   originalBack: backImgSrc,
                   trimMm: 2.5,
-                  bleedMm: 1.75,
+                  bleedMm: 1.9,
                   hasBleed: false,
                   printsUri: cardData.prints_search_uri,
                   finish: 'standard',
@@ -189,18 +189,18 @@ export async function processCardList(
     if (currentStep === 2 && imagesToAssign.length > 0) {
       const limit = Math.min(deck.length, imagesToAssign.length)
       const updatedDeck = [...deck]
-      
+
       for (let i = 0; i < limit; i++) {
         setProcessingPercent(Math.round(((i + 1) / limit) * 100))
         setProcessingText(`Applying back to card ${i + 1}...`)
         const newBack = imagesToAssign[i]
-        
+
         if (updatedDeck[i]) {
           updatedDeck[i] = {
             ...updatedDeck[i],
             originalBack: newBack.original,
           }
-          
+
           await new Promise<void>(resolve => {
             processImage(
               newBack.original,
@@ -215,7 +215,7 @@ export async function processCardList(
           })
         }
       }
-      
+
       setDeck(updatedDeck)
     }
 
