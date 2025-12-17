@@ -58,7 +58,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     original: null,
     processed: null,
     trimMm: 2.5,
-    bleedMm: 1.75,
+    bleedMm: 1.9,
     hasBleed: false,
   })
   const [currentCardIndex, setCurrentCardIndex] = useState(-1)
