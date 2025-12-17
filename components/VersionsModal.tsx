@@ -51,7 +51,7 @@ export default function VersionsModal() {
         fetchVersions(card.printsUri)
       } else {
         setVersions([])
-        setError('Alternative art versions are only available for cards imported from Scryfall. To change the art for manually uploaded images, please upload a new image via the sidebar.')
+        setError('Cards loaded from Scryfall must have 1.9mm bleed. Alternative art versions are only available for cards imported from Scryfall. To change the art for manually uploaded images, please upload a new image via the sidebar.')
       }
     }
   }, [isOpen, activeVersionIndex, deck])
@@ -119,7 +119,7 @@ export default function VersionsModal() {
     processImage(
       largeImgUrl,
       currentCard.trimMm || 2.5,
-      currentCard.bleedMm || 1.75,
+      currentCard.bleedMm || 1.9,
       currentCard.hasBleed || false,
       (processed) => {
         setDeck((prev) => {
