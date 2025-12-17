@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Moon, Sun, X, Layers, Menu } from 'lucide-react'
+import Image from 'next/image'
+import { Moon, Sun, X, Menu } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
 
 interface NavigationProps {
@@ -39,15 +40,33 @@ export default function Navigation({
     <nav className="border-b border-slate-200 dark:border-slate-800 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm z-40 transition-colors duration-300">
       <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4 flex justify-between items-center">
         <div 
-          className="flex items-center space-x-2 cursor-pointer touch-manipulation" 
+          className="flex items-center gap-2 sm:gap-3 cursor-pointer touch-manipulation min-w-0" 
           onClick={onShowLanding}
+          aria-label="Go to homepage"
         >
-          <div className="h-8 w-8 sm:h-10 sm:w-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg sm:text-xl">
-            <Layers className="w-4 h-4 sm:w-6 sm:h-6" />
+          {/* Icon mark */}
+          <div className="relative h-9 w-9 sm:h-10 sm:w-10 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shrink-0">
+            <Image
+              src="/card1.jpg"
+              alt="TCGPlaytest logo"
+              fill
+              sizes="40px"
+              className="object-cover"
+              priority
+            />
           </div>
-          <span className="font-bold text-lg sm:text-xl tracking-tight text-slate-900 dark:text-white">
-            TCGPlaytest
-          </span>
+
+          {/* Wordmark (kept compact for mobile) */}
+          <div className="relative h-6 sm:h-7 w-[130px] sm:w-[170px] max-w-[55vw]">
+            <Image
+              src="/card-logo.jpg"
+              alt="TCGPlaytest"
+              fill
+              sizes="(max-width: 640px) 130px, 170px"
+              className="object-contain object-left"
+              priority
+            />
+          </div>
         </div>
 
         {/* Desktop Navigation */}
