@@ -9,14 +9,14 @@ import { handleXMLFile } from '@/utils/xmlHandling'
 import { openImportModal } from '@/utils/modalHelpers'
 
 export default function Sidebar() {
-  const { 
-    currentStep, 
-    setCurrentStep, 
-    globalBack, 
-    setGlobalBack, 
-    deck, 
-    setDeck, 
-    currentCardIndex, 
+  const {
+    currentStep,
+    setCurrentStep,
+    globalBack,
+    setGlobalBack,
+    deck,
+    setDeck,
+    currentCardIndex,
     setCurrentCardIndex,
     setInspectorIndex,
     setActiveVersionIndex,
@@ -39,10 +39,10 @@ export default function Sidebar() {
       const reader = new FileReader()
       reader.onload = (e) => {
         const original = (e.target?.result as string) || ''
-        const newBack = { ...globalBack, original, trimMm: 2.5, bleedMm: 1.75, hasBleed: false }
+        const newBack = { ...globalBack, original, trimMm: 2.5, bleedMm: 1.9, hasBleed: false }
         setGlobalBack(newBack)
-        
-        processImage(original, 2.5, 1.75, false, (processed) => {
+
+        processImage(original, 2.5, 1.9, false, (processed) => {
           setGlobalBack({ ...newBack, processed })
         })
       }
@@ -63,7 +63,7 @@ export default function Sidebar() {
       original: null,
       processed: null,
       trimMm: 2.5,
-      bleedMm: 1.75,
+      bleedMm: 1.9,
       hasBleed: false,
     })
     setCurrentCardIndex(-1)
@@ -152,113 +152,113 @@ export default function Sidebar() {
       )}
 
       <div id="main-sidebar" className="w-full md:w-80 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col z-20 shadow-lg md:shadow-none transition-colors">
-      <div className="flex-grow overflow-y-auto custom-scrollbar">
-        <div id="upload-panel" className="p-4 sm:p-6 flex-grow">
-          <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-            <ImagePlus className="w-4 h-4" />
-            {currentStep === 2 ? 'Upload Back' : 'Upload Fronts'}
-          </h3>
-          
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => handleFileUpload(e.target.files)}
-          />
-          
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 sm:p-6 text-center hover:bg-blue-50 dark:hover:bg-slate-800 active:bg-blue-100 dark:active:bg-slate-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer mb-4 sm:mb-6 group touch-manipulation"
-          >
-            <ImagePlus className="w-6 h-6 sm:w-8 sm:h-8 text-slate-400 dark:text-slate-500 mx-auto mb-2 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
-            <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
-              {currentStep === 2 ? 'Click to set Card Back' : 'Click to upload'}
-            </p>
-            <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">JPG, PNG (Max 32MB)</p>
-          </div>
+        <div className="flex-grow overflow-y-auto custom-scrollbar">
+          <div id="upload-panel" className="p-4 sm:p-6 flex-grow">
+            <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+              <ImagePlus className="w-4 h-4" />
+              {currentStep === 2 ? 'Upload Back' : 'Upload Fronts'}
+            </h3>
 
-          {processing && (
-            <div className="mb-6">
-              <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                <span>{processingText}</span>
-                <span>{processingPercent}%</span>
-              </div>
-              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
-                <div
-                  className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
-                  style={{ width: `${processingPercent}%` }}
-                />
-              </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => handleFileUpload(e.target.files)}
+            />
+
+            <div
+              onClick={() => fileInputRef.current?.click()}
+              className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg p-4 sm:p-6 text-center hover:bg-blue-50 dark:hover:bg-slate-800 active:bg-blue-100 dark:active:bg-slate-700 hover:border-blue-400 dark:hover:border-blue-500 transition-colors cursor-pointer mb-4 sm:mb-6 group touch-manipulation"
+            >
+              <ImagePlus className="w-6 h-6 sm:w-8 sm:h-8 text-slate-400 dark:text-slate-500 mx-auto mb-2 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
+              <p className="text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 group-hover:text-blue-600 dark:group-hover:text-blue-400">
+                {currentStep === 2 ? 'Click to set Card Back' : 'Click to upload'}
+              </p>
+              <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mt-1">JPG, PNG (Max 32MB)</p>
             </div>
-          )}
 
-          {currentStep === 1 && (
-            <div className="mb-6 space-y-2">
-              <button
-                onClick={() => openImportModal()}
-                className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 py-2 rounded-md text-xs font-medium hover:bg-white dark:hover:bg-slate-700 hover:border-blue-300 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all flex items-center justify-center gap-2"
-              >
-                <List className="w-3 h-3" /> Import from Text List
-              </button>
-              
-              <input
-                ref={xmlInputRef}
-                type="file"
-                accept=".xml"
-                className="hidden"
-                onChange={(e) => handleXMLFile(e.target.files, deck, setDeck, setCurrentCardIndex, currentCardIndex, globalBack, setGlobalBack, currentStep, setProcessing, setProcessingPercent, setProcessingText)}
-              />
-              
-              <button
-                onClick={() => xmlInputRef.current?.click()}
-                className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 py-2 rounded-md text-xs font-medium hover:bg-white dark:hover:bg-slate-700 hover:border-blue-300 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all flex items-center justify-center gap-2"
-              >
-                <FileCode className="w-3 h-3" /> Upload XML (MPCFill)
-              </button>
+            {processing && (
+              <div className="mb-6">
+                <div className="flex justify-between text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                  <span>{processingText}</span>
+                  <span>{processingPercent}%</span>
+                </div>
+                <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                  <div
+                    className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+                    style={{ width: `${processingPercent}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
-              {deck.length > 0 && (
+            {currentStep === 1 && (
+              <div className="mb-6 space-y-2">
                 <button
-                  onClick={handleReset}
-                  className="w-full border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-2 rounded-md text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/30 hover:border-red-300 dark:hover:border-red-700 transition-all flex items-center justify-center gap-2 mt-4"
+                  onClick={() => openImportModal()}
+                  className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 py-2 rounded-md text-xs font-medium hover:bg-white dark:hover:bg-slate-700 hover:border-blue-300 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all flex items-center justify-center gap-2"
                 >
-                  <RotateCcw className="w-3 h-3" /> Reset Project
+                  <List className="w-3 h-3" /> Import from Text List
                 </button>
-              )}
-            </div>
-          )}
 
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Instructions</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-              {currentStep === 2
-                ? 'Upload an image here to set a common back for ALL cards, or use Import to set specific backs.'
-                : 'Upload your card art here. Each image will create a new card in your deck.'}
-            </p>
+                <input
+                  ref={xmlInputRef}
+                  type="file"
+                  accept=".xml"
+                  className="hidden"
+                  onChange={(e) => handleXMLFile(e.target.files, deck, setDeck, setCurrentCardIndex, currentCardIndex, globalBack, setGlobalBack, currentStep, setProcessing, setProcessingPercent, setProcessingText)}
+                />
+
+                <button
+                  onClick={() => xmlInputRef.current?.click()}
+                  className="w-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 py-2 rounded-md text-xs font-medium hover:bg-white dark:hover:bg-slate-700 hover:border-blue-300 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-all flex items-center justify-center gap-2"
+                >
+                  <FileCode className="w-3 h-3" /> Upload XML (MPCFill)
+                </button>
+
+                {deck.length > 0 && (
+                  <button
+                    onClick={handleReset}
+                    className="w-full border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 py-2 rounded-md text-xs font-medium hover:bg-red-100 dark:hover:bg-red-900/30 hover:border-red-300 dark:hover:border-red-700 transition-all flex items-center justify-center gap-2 mt-4"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Reset Project
+                  </button>
+                )}
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-2">Instructions</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                {currentStep === 2
+                  ? 'Upload an image here to set a common back for ALL cards, or use Import to set specific backs.'
+                  : 'Upload your card art here. Each image will create a new card in your deck.'}
+              </p>
+            </div>
           </div>
+
+          <PrintPrepPanel />
         </div>
 
-        <PrintPrepPanel />
+        <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shrink-0">
+          <button
+            onClick={() => setCurrentStep(currentStep === 1 ? 2 : 3)}
+            className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white py-3 sm:py-3 rounded-lg font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition-colors touch-manipulation min-h-[48px]"
+          >
+            {currentStep === 1 ? (
+              <>
+                Next: Customize Back <ArrowRight className="w-4 h-4" />
+              </>
+            ) : (
+              <>
+                Next: Preview Deck <ArrowRight className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </div>
       </div>
-
-      <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shrink-0">
-        <button
-          onClick={() => setCurrentStep(currentStep === 1 ? 2 : 3)}
-          className="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white py-3 sm:py-3 rounded-lg font-bold text-sm sm:text-base shadow-md flex items-center justify-center gap-2 transition-colors touch-manipulation min-h-[48px]"
-        >
-          {currentStep === 1 ? (
-            <>
-              Next: Customize Back <ArrowRight className="w-4 h-4" />
-            </>
-          ) : (
-            <>
-              Next: Preview Deck <ArrowRight className="w-4 h-4" />
-            </>
-          )}
-        </button>
-      </div>
-    </div>
     </>
   )
 }
@@ -266,7 +266,7 @@ export default function Sidebar() {
 function PrintPrepPanel() {
   const { currentStep, deck, currentCardIndex, setDeck, globalBack, setGlobalBack } = useApp()
   const [trimMm, setTrimMm] = useState(2.5)
-  const [bleedMm, setBleedMm] = useState(1.75)
+  const [bleedMm, setBleedMm] = useState(1.9)
   const [hasBleed, setHasBleed] = useState(false)
   const [showAppliedNotification, setShowAppliedNotification] = useState(false)
 
@@ -276,9 +276,9 @@ function PrintPrepPanel() {
     if (target) {
       // Only sync if values are actually different to avoid resetting during updates
       const targetTrim = target.trimMm || 2.5
-      const targetBleed = target.bleedMm !== undefined ? target.bleedMm : 1.75
+      const targetBleed = target.bleedMm !== undefined ? target.bleedMm : 1.9
       const targetHasBleed = target.hasBleed || false
-      
+
       if (Math.abs(targetTrim - trimMm) > 0.01) {
         setTrimMm(targetTrim)
       }
@@ -375,8 +375,8 @@ function PrintPrepPanel() {
           setDeck(prev => {
             const newDeck = [...prev]
             if (cardIdx < newDeck.length) {
-              newDeck[cardIdx] = { 
-                ...newDeck[cardIdx], 
+              newDeck[cardIdx] = {
+                ...newDeck[cardIdx],
                 front: processed,
                 trimMm: finalTrim,
                 bleedMm: finalBleedMm,
@@ -393,8 +393,8 @@ function PrintPrepPanel() {
             setDeck(prev => {
               const newDeck = [...prev]
               if (cardIdx < newDeck.length) {
-                newDeck[cardIdx] = { 
-                  ...newDeck[cardIdx], 
+                newDeck[cardIdx] = {
+                  ...newDeck[cardIdx],
                   back: processedBack,
                   trimMm: finalTrim,
                   bleedMm: finalBleedMm,
@@ -480,11 +480,11 @@ function PrintPrepPanel() {
           <span className="text-xs font-semibold">Settings applied to all {deck.length} card{deck.length !== 1 ? 's' : ''}!</span>
         </div>
       )}
-      
+
       <h3 className="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
         <Crop className="w-4 h-4" /> Print Prep
       </h3>
-      
+
       <div className="space-y-4">
         <div>
           <div className="flex justify-between mb-1">
@@ -566,18 +566,17 @@ function PrintPrepPanel() {
           />
           <div className="flex justify-between text-[9px] text-slate-400 font-medium px-1 mt-1">
             <span>Trim (-4mm)</span>
-            <span className="text-blue-600 dark:text-blue-400 font-bold">Target (+1.75mm)</span>
+            <span className="text-blue-600 dark:text-blue-400 font-bold">Target (+1.9mm)</span>
             <span>Extend (+4mm)</span>
           </div>
         </div>
 
         <button
           onClick={toggleBleed}
-          className={`w-full border py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 ${
-            hasBleed
+          className={`w-full border py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 ${hasBleed
               ? 'bg-blue-600 text-white border-blue-600'
               : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600'
-          }`}
+            }`}
         >
           <Crop className="w-3 h-3" /> {hasBleed ? 'Bleed Active' : 'Add Bleed'}
         </button>
@@ -586,8 +585,8 @@ function PrintPrepPanel() {
           <div className="flex gap-2 items-start">
             <Crop className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
             <p className="text-[10px] leading-tight text-slate-600 dark:text-slate-400">
-              <strong className="text-slate-800 dark:text-slate-200">Standard (+1.75mm):</strong> We need a{' '}
-              <strong>1.75mm bleed</strong> extension past the cut line for reliable borderless printing.
+              <strong className="text-slate-800 dark:text-slate-200">Standard (+1.9mm):</strong> We need a{' '}
+              <strong>1.9mm bleed</strong> extension past the cut line for reliable borderless printing.
             </p>
           </div>
           <div className="flex gap-2 items-start pt-1 border-t border-blue-200 dark:border-blue-800">
@@ -599,7 +598,7 @@ function PrintPrepPanel() {
         </div>
 
         <div className="pt-2 border-t border-slate-200 dark:border-slate-700 mt-2">
-          <button 
+          <button
             onClick={applyPrepToAll}
             className="w-full bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
