@@ -77,7 +77,7 @@ export default function DisclaimerModal() {
                 className="mt-0.5 sm:mt-1 w-5 h-5 sm:w-6 sm:h-6 text-green-600 border-2 border-slate-300 dark:border-slate-600 rounded focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:bg-slate-800 dark:checked:bg-green-600 dark:checked:border-green-600 cursor-pointer transition-all flex-shrink-0 touch-manipulation"
               />
               <span className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed group-hover:text-slate-900 dark:group-hover:text-slate-100 transition-colors">
-                I verify that I understand the bleed requirements and I adjusted the cards to have 2mm bleed for accurate printing.
+                I verify that I understand the bleed requirements and I adjusted the cards to have 1.9mm bleed for accurate printing.
               </span>
             </label>
           </div>
