@@ -53,7 +53,7 @@ export function handleXMLFile(
             canvas.getContext('2d')?.drawImage(img, 0, 0)
             const dataUrl = canvas.toDataURL()
             setGlobalBack(prev => ({ ...prev, original: dataUrl }))
-            processImage(dataUrl, 2.5, 1.75, false, (processed) => {
+            processImage(dataUrl, 2.5, 1.9, false, (processed) => {
               setGlobalBack(prev => ({ ...prev, processed: processed || null }))
               resolve()
             })
@@ -116,7 +116,7 @@ export function handleXMLFile(
                   return newDeck
                 })
 
-                processImage(dataUrl, card.trimMm || 2.5, card.bleedMm || 1.75, card.hasBleed || false, (processed) => {
+                processImage(dataUrl, card.trimMm || 2.5, card.bleedMm || 1.9, card.hasBleed || false, (processed) => {
                   setDeck(prev => {
                     const newDeck = [...prev]
                     if (slot < newDeck.length) {
@@ -206,31 +206,31 @@ export function handleXMLFile(
           // Load back image if available
           const backDataUrl = data.back
             ? await new Promise<string | null>(resolve => {
-                const img = new Image()
-                img.crossOrigin = 'Anonymous'
-                img.onload = () => {
-                  const canvas = document.createElement('canvas')
-                  canvas.width = img.width
-                  canvas.height = img.height
-                  canvas.getContext('2d')?.drawImage(img, 0, 0)
-                  resolve(canvas.toDataURL())
-                }
-                img.onerror = () => resolve(null)
-                img.src = data.back!
-              })
+              const img = new Image()
+              img.crossOrigin = 'Anonymous'
+              img.onload = () => {
+                const canvas = document.createElement('canvas')
+                canvas.width = img.width
+                canvas.height = img.height
+                canvas.getContext('2d')?.drawImage(img, 0, 0)
+                resolve(canvas.toDataURL())
+              }
+              img.onerror = () => resolve(null)
+              img.src = data.back!
+            })
             : null
 
           if (frontDataUrl) {
             // Process front
             const processedFront = await new Promise<string | null>(resolve => {
-              processImage(frontDataUrl, 2.5, 1.75, false, resolve)
+              processImage(frontDataUrl, 2.5, 1.9, false, resolve)
             })
 
             // Process back if available
             const processedBack = backDataUrl
               ? await new Promise<string | null>(resolve => {
-                  processImage(backDataUrl, 2.5, 1.75, false, resolve)
-                })
+                processImage(backDataUrl, 2.5, 1.9, false, resolve)
+              })
               : null
 
             const newCard: Card = {
@@ -240,7 +240,7 @@ export function handleXMLFile(
               originalBack: backDataUrl,
               back: processedBack,
               trimMm: 2.5,
-              bleedMm: 1.75,
+              bleedMm: 1.9,
               hasBleed: false,
               finish: 'standard',
               quantity: 1,
