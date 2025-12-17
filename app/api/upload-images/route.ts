@@ -26,7 +26,9 @@ async function uploadImagesToStorage(
   orderId: string,
   shippingAddress: any
 ): Promise<string[]> {
-  const uploadedUrls: string[] = []
+  // Return URLs aligned to the input array (same length, same ordering).
+  // Missing images are returned as '' so the caller can keep [front, back, mask] structure.
+  const uploadedUrls: string[] = new Array(images.length).fill('')
   const bucketName = 'order-images'
   
   // Create folder structure: order-images/{orderId}/{timestamp}/{country_postal}/
@@ -49,7 +51,7 @@ async function uploadImagesToStorage(
         
         // Skip if already a URL
         if (frontImage.startsWith('http')) {
-          uploadedUrls.push(frontImage)
+          uploadedUrls[i] = frontImage
         } else {
           const buffer = base64ToBuffer(frontImage)
           const extension = getExtensionFromBase64(frontImage)
@@ -73,7 +75,7 @@ async function uploadImagesToStorage(
             
             if (urlData?.publicUrl) {
               console.log(`✅ Front uploaded for card ${cardIndex}: ${filePath}`)
-              uploadedUrls.push(urlData.publicUrl)
+              uploadedUrls[i] = urlData.publicUrl
             }
           }
         }
@@ -89,7 +91,7 @@ async function uploadImagesToStorage(
         
         // Skip if already a URL
         if (backImage.startsWith('http')) {
-          uploadedUrls.push(backImage)
+          uploadedUrls[i + 1] = backImage
         } else {
           const buffer = base64ToBuffer(backImage)
           const extension = getExtensionFromBase64(backImage)
@@ -113,7 +115,7 @@ async function uploadImagesToStorage(
             
             if (urlData?.publicUrl) {
               console.log(`✅ Back uploaded for card ${cardIndex}: ${filePath}`)
-              uploadedUrls.push(urlData.publicUrl)
+              uploadedUrls[i + 1] = urlData.publicUrl
             }
           }
         }
@@ -129,7 +131,7 @@ async function uploadImagesToStorage(
         
         // Skip if already a URL
         if (maskImage.startsWith('http')) {
-          uploadedUrls.push(maskImage)
+          uploadedUrls[i + 2] = maskImage
         } else {
           // Verify mask is PNG format (required for transparency)
           const isPNG = maskImage.startsWith('data:image/png') || maskImage.includes('image/png')
@@ -168,7 +170,7 @@ async function uploadImagesToStorage(
             
             if (urlData?.publicUrl) {
               console.log(`✅ Mask uploaded for card ${cardIndex}: ${filePath} (${buffer.length} bytes, PNG with transparency)`)
-              uploadedUrls.push(urlData.publicUrl)
+              uploadedUrls[i + 2] = urlData.publicUrl
             }
           }
         }
