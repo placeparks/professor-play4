@@ -73,6 +73,28 @@ export default function CheckoutModal() {
     setIsSubmitting(true)
 
     try {
+      // Concurrency helper to speed up compression + uploads without overwhelming the browser/network
+      const mapWithConcurrency = async <T, R>(
+        items: T[],
+        concurrency: number,
+        fn: (item: T, index: number) => Promise<R>
+      ): Promise<R[]> => {
+        const results: R[] = new Array(items.length)
+        let nextIndex = 0
+
+        const worker = async () => {
+          while (true) {
+            const current = nextIndex++
+            if (current >= items.length) return
+            results[current] = await fn(items[current], current)
+          }
+        }
+
+        const workers = Array.from({ length: Math.max(1, concurrency) }, () => worker())
+        await Promise.all(workers)
+        return results
+      }
+
       // Prepare card images organized properly (front/back/mask triplets)
       // Ensure arrays match deck length exactly - one entry per card
       const frontImages: string[] = []
@@ -174,42 +196,50 @@ export default function CheckoutModal() {
         const maskCount = maskImages.filter(m => m && m.trim() !== '').length
         console.log(`📦 Total images to upload: ${allImages.length} (${frontImages.length} fronts, ${backImages.length} backs, ${maskCount} masks)`)
 
-        // Compress images before upload to reduce payload size
-        console.log('🗜️ Compressing images to reduce payload size...')
-        const compressedImages: string[] = []
-        for (let i = 0; i < allImages.length; i++) {
-          // Skip compression for empty strings (placeholders for missing backs/masks)
-          if (!allImages[i] || allImages[i] === '') {
-            compressedImages.push('')
-            continue
+        // Upload per-card (front + back + mask) with concurrency to speed up large decks.
+        // This keeps each request small while dramatically reducing total wall-clock time.
+        const CHUNK_SIZE = 3 // [front, back, mask]
+        const totalChunks = Math.ceil(allImages.length / CHUNK_SIZE)
+        const indices = Array.from({ length: totalChunks }, (_, idx) => idx)
+
+        // Conservative defaults to avoid freezing the browser and to stay friendly to Supabase.
+        const COMPRESS_CONCURRENCY = 3
+        const UPLOAD_CONCURRENCY = 4
+
+        // Compress fronts/backs for each chunk (skip masks; keep PNG) with limited concurrency
+        console.log('🗜️ Compressing images to reduce payload size (parallel)...')
+        const compressedChunks = await mapWithConcurrency(indices, COMPRESS_CONCURRENCY, async (chunkIdx) => {
+          const start = chunkIdx * CHUNK_SIZE
+          const chunk = allImages.slice(start, start + CHUNK_SIZE)
+
+          // Ensure exactly [front, back, mask] shape (pad with '')
+          while (chunk.length < CHUNK_SIZE) chunk.push('')
+
+          const [front, back, mask] = chunk
+
+          const compressIfNeeded = async (img: string) => {
+            if (!img || img.trim() === '') return ''
+            // If it's already a URL, don't touch it
+            if (img.startsWith('http')) return img
+            // Base64 data URL: compress to jpeg
+            return await compressImage(img, 0.8)
           }
-          
-          // Check if this is a mask image (every 3rd image starting from index 2: 2, 5, 8, ...)
-          // Masks must remain PNG to preserve transparency - don't compress them
-          const isMask = (i % 3) === 2
-          
-          if (isMask) {
-            console.log(`🖼️ Skipping compression for mask ${Math.floor(i / 3) + 1} (must preserve PNG transparency)`)
-            // Keep mask as-is (already PNG) - don't compress
-            compressedImages.push(allImages[i])
-          } else {
-            console.log(`🗜️ Compressing image ${i + 1}/${allImages.length}...`)
-            const compressed = await compressImage(allImages[i], 0.8) // Max 0.8MB per image
-            compressedImages.push(compressed)
-          }
-        }
-        console.log(`✅ Compressed ${compressedImages.length} images`)
 
-        // Upload in chunks of 3 images to stay under 4.5MB limit per request
-        // Each chunk = 1 card (front + back + mask)
-        const CHUNK_SIZE = 3 // 1 card per chunk (3 images = 1 front + 1 back + 1 mask)
-        const totalChunks = Math.ceil(compressedImages.length / CHUNK_SIZE)
+          const compressedFront = await compressIfNeeded(front)
+          const compressedBack = await compressIfNeeded(back)
 
-        for (let i = 0; i < compressedImages.length; i += CHUNK_SIZE) {
-          const chunk = compressedImages.slice(i, i + CHUNK_SIZE)
-          const chunkNum = Math.floor(i / CHUNK_SIZE) + 1
+          // Masks must remain PNG for transparency; do not compress
+          const finalMask = mask && mask.trim() !== '' ? mask : ''
 
-          console.log(`📤 Uploading chunk ${chunkNum}/${totalChunks}: ${chunk.length} images`)
+          return [compressedFront, compressedBack, finalMask]
+        })
+
+        console.log(`✅ Compression done for ${compressedChunks.length} cards`)
+
+        console.log(`📤 Uploading ${compressedChunks.length} cards (parallel)...`)
+        const uploadedChunkResults = await mapWithConcurrency(indices, UPLOAD_CONCURRENCY, async (chunkIdx) => {
+          const chunkNum = chunkIdx + 1
+          const chunk = compressedChunks[chunkIdx]
 
           try {
             const uploadResponse = await fetch('/api/upload-images', {
@@ -234,34 +264,42 @@ export default function CheckoutModal() {
                   errorText = `HTTP ${uploadResponse.status}: ${uploadResponse.statusText}`
                 }
               }
-              console.error(`❌ Upload failed for chunk ${chunkNum}:`, errorText)
+              console.error(`❌ Upload failed for card ${chunkNum}:`, errorText)
               throw new Error(`Upload failed: ${errorText}`)
             }
 
             const uploadData = await uploadResponse.json()
-            if (uploadData.imageUrls && uploadData.imageUrls.length > 0) {
-              uploadedImageUrls.push(...uploadData.imageUrls)
-              console.log(`✅ Chunk ${chunkNum} uploaded: ${uploadData.imageUrls.length} URLs received`)
-            } else {
-              console.error(`⚠️ Chunk ${chunkNum} upload returned no URLs`)
+            const imageUrls: string[] = Array.isArray(uploadData.imageUrls) ? uploadData.imageUrls : []
+
+            // /api/upload-images returns URLs aligned to input chunk length (3).
+            if (imageUrls.length !== 3) {
+              console.warn(`⚠️ Upload for card ${chunkNum} returned ${imageUrls.length} urls; expected 3.`, imageUrls)
             }
+
+            return imageUrls
           } catch (uploadError: any) {
-            console.error(`❌ Error uploading chunk ${chunkNum}:`, uploadError)
+            console.error(`❌ Error uploading card ${chunkNum}:`, uploadError)
             throw new Error(`Failed to upload images: ${uploadError.message}`)
           }
-        }
+        })
+
+        // Flatten in original order
+        uploadedImageUrls = uploadedChunkResults.flat()
 
         console.log(`✅ All images uploaded successfully: ${uploadedImageUrls.length} total URLs`)
 
         // Map URLs back to cardData
         const finalCardData = cardData.map((card, index) => {
-          const frontUrlIndex = index * 2
-          const backUrlIndex = index * 2 + 1
+          const frontUrlIndex = index * 3
+          const backUrlIndex = index * 3 + 1
+          const maskUrlIndex = index * 3 + 2
 
           return {
             ...card,
             frontUrl: uploadedImageUrls[frontUrlIndex] || null,
-            backUrl: uploadedImageUrls[backUrlIndex] || null
+            backUrl: uploadedImageUrls[backUrlIndex] || null,
+            // Keep silverMask in sync with uploaded mask URL if present
+            silverMask: uploadedImageUrls[maskUrlIndex] || null
           }
         })
 
