@@ -1,14 +1,21 @@
 import { Card } from '@/contexts/AppContext'
 import { processImage } from './imageProcessing'
 
-interface CardRequest {
+export interface CardRequest {
   qty: number
+  name?: string
   identifier: {
     name?: string
     set?: string
     collector_number?: string
   }
   originalLine: string
+}
+
+export interface ProcessCardListResult {
+  success: boolean
+  errors: string[]
+  failedRequests: CardRequest[]
 }
 
 export async function processCardList(
@@ -22,10 +29,11 @@ export async function processCardList(
   setProcessingPercent: React.Dispatch<React.SetStateAction<number>>,
   setProcessingText: React.Dispatch<React.SetStateAction<string>>,
   setErrors: React.Dispatch<React.SetStateAction<string[]>>
-): Promise<{ success: boolean; errors: string[] }> {
+): Promise<ProcessCardListResult> {
   const lines = text.split('\n').filter(l => l.trim().length > 0)
   const cardRequests: CardRequest[] = []
   const errors: string[] = []
+  const failedRequests: CardRequest[] = []
 
   // Parse lines
   lines.forEach(line => {
@@ -59,7 +67,7 @@ export async function processCardList(
   })
 
   if (cardRequests.length === 0) {
-    return { success: false, errors: ['No valid lines found.'] }
+    return { success: false, errors: ['No valid lines found.'], failedRequests: [] }
   }
 
   setProcessing(true)
@@ -174,9 +182,11 @@ export async function processCardList(
           })
         } else {
           errors.push(req.originalLine)
+          failedRequests.push(req)
         }
       } else {
         errors.push(req.originalLine)
+        failedRequests.push(req)
       }
     }
 
@@ -229,12 +239,12 @@ export async function processCardList(
     setProcessing(false)
     setErrors(errors)
 
-    return { success: errors.length === 0, errors }
+    return { success: errors.length === 0, errors, failedRequests }
   } catch (error) {
     console.error(error)
     setProcessing(false)
     setErrors(['Error contacting Scryfall API.'])
-    return { success: false, errors: ['Error contacting Scryfall API.'] }
+    return { success: false, errors: ['Error contacting Scryfall API.'], failedRequests: [] }
   }
 }
 
