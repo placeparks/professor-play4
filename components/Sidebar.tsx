@@ -268,9 +268,15 @@ function PrintPrepPanel() {
   const [trimMm, setTrimMm] = useState(2.5)
   const [bleedMm, setBleedMm] = useState(1.9)
   const [hasBleed, setHasBleed] = useState(false)
-  const [showAppliedNotification, setShowAppliedNotification] = useState(false)
+  const [isApplied, setIsApplied] = useState(false) // Persistent state for button
+  const [showNotificationBanner, setShowNotificationBanner] = useState(false) // Temporary banner
 
   const target = currentStep === 2 ? globalBack : deck[currentCardIndex]
+
+  // Reset applied state when deck length changes (new cards added)
+  useEffect(() => {
+    setIsApplied(false)
+  }, [deck.length])
 
   useEffect(() => {
     if (target) {
@@ -281,12 +287,15 @@ function PrintPrepPanel() {
 
       if (Math.abs(targetTrim - trimMm) > 0.01) {
         setTrimMm(targetTrim)
+        setIsApplied(false) // Reset when settings change
       }
       if (Math.abs(targetBleed - bleedMm) > 0.01) {
         setBleedMm(targetBleed)
+        setIsApplied(false) // Reset when settings change
       }
       if (targetHasBleed !== hasBleed) {
         setHasBleed(targetHasBleed)
+        setIsApplied(false) // Reset when settings change
       }
     }
   }, [target, currentStep, currentCardIndex])
@@ -417,6 +426,7 @@ function PrintPrepPanel() {
   const toggleBleed = () => {
     const newHasBleed = !hasBleed
     setHasBleed(newHasBleed)
+    setIsApplied(false) // Reset applied state when user toggles bleed
     // Update cut line overlay first
     updateCutLineOverlay(undefined, undefined, newHasBleed)
     // Then process the image with the new bleed state
@@ -461,11 +471,13 @@ function PrintPrepPanel() {
     try {
       const updatedDeck = await Promise.all(promises)
       setDeck(updatedDeck)
-      // Show success notification
-      setShowAppliedNotification(true)
+      // Set applied state to true (persists until changes)
+      setIsApplied(true)
+      // Show temporary notification banner
+      setShowNotificationBanner(true)
       setTimeout(() => {
-        setShowAppliedNotification(false)
-      }, 3000) // Hide after 3 seconds
+        setShowNotificationBanner(false)
+      }, 3000) // Hide banner after 3 seconds
     } catch (error) {
       console.error('Error applying prep settings to all cards:', error)
     }
@@ -474,7 +486,7 @@ function PrintPrepPanel() {
   return (
     <div id="print-prep-panel" className="p-6 border-t border-slate-100 dark:border-slate-800 bg-blue-50/50 dark:bg-slate-850 relative">
       {/* Success Notification */}
-      {showAppliedNotification && (
+      {showNotificationBanner && (
         <div className="absolute top-4 left-4 right-4 bg-green-500 dark:bg-green-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50 animate-in fade-in slide-in-from-top-2 duration-300">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
           <span className="text-xs font-semibold">Settings applied to all {deck.length} card{deck.length !== 1 ? 's' : ''}!</span>
@@ -500,6 +512,7 @@ function PrintPrepPanel() {
             onChange={(e) => {
               const newTrim = parseFloat(e.target.value)
               setTrimMm(newTrim)
+              setIsApplied(false) // Reset applied state when user changes settings
               // Update cut line overlay visually
               updateCutLineOverlay(newTrim)
               // If bleed is active, reprocess image with new trim value
@@ -524,6 +537,7 @@ function PrintPrepPanel() {
                 onChange={(e) => {
                   const newBleed = parseFloat(e.target.value)
                   setBleedMm(newBleed)
+                  setIsApplied(false) // Reset applied state when user changes settings
                   // Sync slider
                   const bleedSlider = document.getElementById('bleed-slider') as HTMLInputElement
                   if (bleedSlider) {
@@ -552,6 +566,7 @@ function PrintPrepPanel() {
             onChange={(e) => {
               const newBleed = parseFloat(e.target.value)
               setBleedMm(newBleed)
+              setIsApplied(false) // Reset applied state when user changes settings
               // Sync input field
               const bleedInput = document.getElementById('bleed-fine-tune') as HTMLInputElement
               if (bleedInput) bleedInput.value = newBleed.toString()
@@ -574,8 +589,8 @@ function PrintPrepPanel() {
         <button
           onClick={toggleBleed}
           className={`w-full border py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 ${hasBleed
-              ? 'bg-blue-600 text-white border-blue-600'
-              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600'
+            ? 'bg-blue-600 text-white border-blue-600'
+            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600'
             }`}
         >
           <Crop className="w-3 h-3" /> {hasBleed ? 'Bleed Active' : 'Add Bleed'}
@@ -602,7 +617,15 @@ function PrintPrepPanel() {
             onClick={applyPrepToAll}
             className="w-full bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
           >
-            <Copy className="w-3 h-3" /> Apply to All Cards
+            {isApplied ? (
+              <>
+                <CheckCircle className="w-3 h-3" /> Applied
+              </>
+            ) : (
+              <>
+                <Copy className="w-3 h-3" /> Apply to All Cards
+              </>
+            )}
           </button>
           <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-1">
             Copies current trim/bleed settings to entire deck
