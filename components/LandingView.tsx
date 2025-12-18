@@ -27,12 +27,12 @@ export default function LandingView({ onStartDesign }: LandingViewProps) {
     cardsConfig.forEach(conf => {
       const el = document.createElement('div')
       el.classList.add('bg-card-floater')
-      
+
       if (conf.top) el.style.top = conf.top
       if (conf.bottom) el.style.bottom = conf.bottom
       if (conf.left) el.style.left = conf.left
       if (conf.right) el.style.right = conf.right
-      
+
       el.style.animationDelay = conf.delay
       if (conf.opacity) el.style.opacity = String(conf.opacity)
 
@@ -100,11 +100,11 @@ export default function LandingView({ onStartDesign }: LandingViewProps) {
             </div>
             <div className="flex flex-col xs:flex-row items-start xs:items-center gap-3 xs:gap-6 text-xs sm:text-sm text-slate-500 dark:text-slate-400 pt-2 sm:pt-4">
               <div className="flex items-center gap-1.5">
-                <Truck className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" /> 
+                <Truck className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
                 <span>3-5 Day US Shipping</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" /> 
+                <ShieldCheck className="w-4 h-4 text-green-600 dark:text-green-400 shrink-0" />
                 <span>Tariff Free</span>
               </div>
             </div>
@@ -118,22 +118,25 @@ export default function LandingView({ onStartDesign }: LandingViewProps) {
                   <span className="text-slate-400 dark:text-slate-500 font-semibold text-sm">Card Back</span>
                 </div>
               </div>
-              
+
               {/* Main blue card */}
               <div className="absolute top-8 right-12 w-48 h-64 bg-blue-600 rounded-xl shadow-xl transform -rotate-3 z-20 flex flex-col items-center justify-center p-1 text-white">
                 <div className="w-full h-full border border-white/20 rounded-lg relative overflow-hidden bg-gradient-to-br from-blue-500 to-blue-700 p-4 flex flex-col items-center text-center">
-                  <div className="text-xs font-mono opacity-50 mb-4">TCGPlaytest S33</div>
-                  <div className="w-20 h-20 bg-white/10 rounded-full mb-4 flex items-center justify-center p-2">
-                    <Layers className="w-10 h-10 text-white opacity-90" />
+                  {/* Logo */}
+                  <img src="/card1.jpg" alt="Sample Card" className="w-20 h-20 object-cover" />
+
+                  {/* Card Image */}
+                  <div className="w-full h-24 rounded-full mb-4 flex items-center justify-center overflow-hidden">
+                  <img src="/card-logo.jpg" alt="TCGPlaytest Logo" className="h-full mb-4 opacity-80 object-contain" />
                   </div>
                   <div className="h-2 bg-white/20 rounded w-3/4 mx-auto mb-2"></div>
                   <div className="h-2 bg-white/20 rounded w-1/2 mx-auto"></div>
                 </div>
               </div>
-              
+
               {/* Additional card outline in bottom-right */}
               <div className="absolute bottom-0 right-0 w-40 h-56 bg-white/20 dark:bg-slate-800/20 rounded-xl border-2 border-dashed border-slate-300/30 dark:border-slate-600/30 transform rotate-12 z-0 opacity-20"></div>
-              
+
               {/* Ambient glow */}
               <div className="absolute -bottom-4 -left-4 w-full h-full bg-blue-100 dark:bg-blue-900/20 rounded-full filter blur-3xl opacity-30 -z-10"></div>
             </div>
