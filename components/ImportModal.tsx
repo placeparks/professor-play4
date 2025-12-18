@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { X, List, DownloadCloud, AlertTriangle, XCircle, Wrench } from 'lucide-react'
 import { useApp } from '@/contexts/AppContext'
 import { setImportModalCallback } from '@/utils/modalHelpers'
-import { processCardList } from '@/utils/scryfallImport'
+import { processCardList, CardRequest } from '@/utils/scryfallImport'
 
 export default function ImportModal() {
   const [isOpen, setIsOpen] = useState(false)
@@ -14,7 +14,8 @@ export default function ImportModal() {
   const [processing, setProcessing] = useState(false)
   const [processingPercent, setProcessingPercent] = useState(0)
   const [processingText, setProcessingText] = useState('Processing...')
-  
+  const lastFailedRequests = useRef<CardRequest[]>([])
+
   const {
     currentStep,
     deck,
@@ -27,15 +28,17 @@ export default function ImportModal() {
     setImportModalCallback(() => setIsOpen(true))
   }, [])
 
-  const handleImport = async () => {
-    if (!importText.trim()) return
+  const handleImport = async (textOverride?: string) => {
+    const textToProcess = textOverride ?? importText
+    if (!textToProcess.trim()) return
 
     setStatus('Parsing list...')
     setErrors([])
     setProcessing(true)
+    lastFailedRequests.current = [] // Reset failed requests
 
     const result = await processCardList(
-      importText,
+      textToProcess,
       deck,
       setDeck,
       currentStep,
@@ -49,6 +52,7 @@ export default function ImportModal() {
 
     if (result.success) {
       setStatus('Import Complete!')
+      lastFailedRequests.current = []
       setTimeout(() => {
         setIsOpen(false)
         setImportText('')
@@ -58,17 +62,31 @@ export default function ImportModal() {
     } else {
       setStatus(`Finished with ${result.errors.length} errors.`)
       setErrors(result.errors)
+      lastFailedRequests.current = result.failedRequests // Store failed requests for retry
     }
   }
 
   const fixAndRetry = () => {
-    const fixedLines = errors.map(line => {
-      return line.replace(/\s+\([^\)]+\).*$/, '').trim()
+    // Build fixed lines from the stored failed requests (not from error display strings)
+    const fixedLines = lastFailedRequests.current.map(req => {
+      // Strip set codes and collector numbers from the name, keep just card name + qty
+      let cleanName = req.identifier.name || req.originalLine
+      // Remove (Set) Number or [Set] Number patterns
+      cleanName = cleanName.replace(/\s+[\(\[].*?[\)\]]\s+\S+$/, '')
+      cleanName = cleanName.replace(/\s+[\(\[].*?[\)\]]$/, '')
+      cleanName = cleanName.replace(/\s+\d{3,}$/, '')
+      cleanName = cleanName.trim()
+
+      return `${req.qty} ${cleanName}`
     })
-    setImportText(fixedLines.join('\n'))
+
+    const fixedText = fixedLines.join('\n')
+    setImportText(fixedText)
     setErrors([])
     setStatus('')
-    handleImport()
+
+    // Call handleImport with the fixed text directly to avoid async state issue
+    handleImport(fixedText)
   }
 
   const closeModal = () => {
@@ -176,7 +194,7 @@ export default function ImportModal() {
             Cancel
           </button>
           <button
-            onClick={handleImport}
+            onClick={() => handleImport()}
             disabled={processing || !importText.trim()}
             className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-slate-400 disabled:cursor-not-allowed text-white px-4 sm:px-5 py-2.5 sm:py-2 rounded-lg font-medium text-sm transition-colors shadow flex items-center justify-center gap-2 touch-manipulation min-h-[44px] order-1 sm:order-2"
           >
