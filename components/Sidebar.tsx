@@ -242,6 +242,83 @@ export default function Sidebar() {
           <PrintPrepPanel />
         </div>
 
+        {/* Background Image Selector - Only show in step 2 */}
+        {currentStep === 2 && (
+          <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900">
+            <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-3">
+              Choose Background
+            </h4>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => {
+                  const bgPath = '/bg1.jpg'
+                  fetch(bgPath)
+                    .then(res => res.blob())
+                    .then(blob => {
+                      const reader = new FileReader()
+                      reader.onload = (e) => {
+                        const original = (e.target?.result as string) || ''
+                        const newBack = { ...globalBack, original, trimMm: 2.5, bleedMm: 1.9, hasBleed: false }
+                        setGlobalBack(newBack)
+                        processImage(original, 2.5, 1.9, false, (processed) => {
+                          setGlobalBack({ ...newBack, processed })
+                        })
+                      }
+                      reader.readAsDataURL(blob)
+                    })
+                }}
+                className="relative group overflow-hidden rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-400 transition-all aspect-[63/88]"
+              >
+                <img
+                  src="/bg1.jpg"
+                  alt="Background 1"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                  <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100 bg-blue-600 px-2 py-1 rounded">
+                    Select
+                  </span>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  const bgPath = '/bg2.jpg'
+                  fetch(bgPath)
+                    .then(res => res.blob())
+                    .then(blob => {
+                      const reader = new FileReader()
+                      reader.onload = (e) => {
+                        const original = (e.target?.result as string) || ''
+                        const newBack = { ...globalBack, original, trimMm: 2.5, bleedMm: 1.9, hasBleed: false }
+                        setGlobalBack(newBack)
+                        processImage(original, 2.5, 1.9, false, (processed) => {
+                          setGlobalBack({ ...newBack, processed })
+                        })
+                      }
+                      reader.readAsDataURL(blob)
+                    })
+                }}
+                className="relative group overflow-hidden rounded-lg border-2 border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-400 transition-all aspect-[63/88]"
+              >
+                <img
+                  src="/bg2.jpg"
+                  alt="Background 2"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                  <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100 bg-blue-600 px-2 py-1 rounded">
+                    Select
+                  </span>
+                </div>
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-2">
+              Click to apply as card back
+            </p>
+          </div>
+        )}
+
         <div className="p-3 sm:p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 shrink-0">
           <button
             onClick={() => setCurrentStep(currentStep === 1 ? 2 : 3)}
