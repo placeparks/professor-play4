@@ -30,7 +30,7 @@ export default function CheckoutModal() {
 
   useEffect(() => {
     // Expose function to open modal globally
-    ;(window as any).openCheckoutModal = () => setIsOpen(true)
+    ; (window as any).openCheckoutModal = () => setIsOpen(true)
   }, [])
 
   const closeModal = () => {
@@ -44,7 +44,7 @@ export default function CheckoutModal() {
 
   // Calculate prices using the same logic as updateDeckStats
   const quantity = deck.reduce((acc, card) => acc + (card.quantity || 1), 0)
-  
+
   let pricePerCard = 0.35
   if (quantity >= 500) {
     pricePerCard = 0.26
@@ -104,26 +104,44 @@ export default function CheckoutModal() {
         return results
       }
 
+      // EXPAND CARDS BASED ON QUANTITY
+      // Cards with quantity > 1 need to be expanded into separate instances
+      // Example: 1 card with quantity: 4 becomes 4 separate cards with quantity: 1
+      const expandedDeck: typeof deck = []
+      deck.forEach((card, originalIndex) => {
+        const qty = card.quantity || 1
+        for (let i = 0; i < qty; i++) {
+          expandedDeck.push({
+            ...card,
+            id: `${card.id}_${i}`, // Unique ID for each expanded card
+            quantity: 1 // Each expanded card has quantity 1
+          })
+        }
+      })
+
+      console.log(`📦 Expanded ${deck.length} cards (with quantities) into ${expandedDeck.length} individual cards`)
+
       // Prepare card images organized properly (front/back/mask triplets)
-      // Ensure arrays match deck length exactly - one entry per card
+      // Ensure arrays match expandedDeck length exactly - one entry per card
+
       const frontImages: string[] = []
       const backImages: string[] = []
       const maskImages: (string | null)[] = []
-      
-      deck.forEach((card, index) => {
+
+      expandedDeck.forEach((card, index) => {
         // Front image (required) - this should be the card front
         const frontImg = card.front || card.originalFront
         frontImages.push(frontImg || '')
-        
+
         // Back image - use card-specific back, or global back, or empty
         // IMPORTANT: Make sure we're getting the back, not the front
         const backImg = card.back || card.originalBack || globalBack.processed || globalBack.original
         backImages.push(backImg || '')
-        
+
         // Mask image - always include (even if null) to maintain array pattern
         const maskImg = card.silverMask || null
         maskImages.push(maskImg)
-        
+
         // Debug logging to verify front/back are correct
         console.log(`🃏 Card ${index + 1} image collection:`, {
           hasFront: !!frontImg,
@@ -136,7 +154,7 @@ export default function CheckoutModal() {
 
       // Prepare card data WITHOUT base64 images (we'll upload separately and use URLs)
       // Base64 images are included separately in allImages array
-      const cardData = deck.map((card) => ({
+      const cardData = expandedDeck.map((card) => ({
         id: card.id, // Include card ID
         quantity: card.quantity || 1,
         trimMm: card.trimMm || 0,
@@ -158,9 +176,9 @@ export default function CheckoutModal() {
       // Combine all images in order: [front1, back1, mask1, front2, back2, mask2, ...]
       // Masks are included as separate images alongside fronts and backs
       // Always maintain the pattern: front, back, mask for each card
-      // All arrays should have the same length as deck.length
+      // All arrays should have the same length as expandedDeck.length
       const allImages: string[] = []
-      for (let i = 0; i < deck.length; i++) {
+      for (let i = 0; i < expandedDeck.length; i++) {
         // Always push in order: front, back, mask
         // Use empty string for missing images to maintain array structure
         allImages.push(frontImages[i] || '') // Front (required, but use empty string if missing)
@@ -194,7 +212,7 @@ export default function CheckoutModal() {
       // Always upload images first if we have any images (safer for Vercel's 4.5MB limit)
       // This prevents 413 errors and ensures reliable checkout
       const shouldUploadImagesFirst = allImages.length > 0
-      
+
       if (shouldUploadImagesFirst) {
         console.log(`📤 Payload too large (${payloadSizeMB} MB), uploading images via backend first...`)
 
