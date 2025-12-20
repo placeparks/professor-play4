@@ -15,6 +15,7 @@ export default function ImportModal() {
   const [processing, setProcessing] = useState(false)
   const [processingPercent, setProcessingPercent] = useState(0)
   const [processingText, setProcessingText] = useState('Processing...')
+  const [fixing, setFixing] = useState(false)
   const lastFailedRequests = useRef<CardRequest[]>([])
 
   const {
@@ -68,6 +69,7 @@ export default function ImportModal() {
   }
 
   const fixAndRetry = async () => {
+    setFixing(true)
     setStatus('Fetching flavor name database...')
     setProcessing(true)
 
@@ -108,6 +110,7 @@ export default function ImportModal() {
     setImportText(fixedText)
     setErrors([])
     setStatus('')
+    setFixing(false)
     // setProcessing(false) // handleImport sets this to true, but we are about to call it.
 
     // Call handleImport with the fixed text directly to avoid async state issue
@@ -202,9 +205,22 @@ export default function ImportModal() {
               </ul>
               <button
                 onClick={fixAndRetry}
-                className="w-full bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 py-2 rounded text-xs font-bold transition-colors flex items-center justify-center gap-2"
+                disabled={fixing}
+                className="w-full bg-red-100 hover:bg-red-200 dark:bg-red-900/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 py-2 rounded text-xs font-bold transition-colors flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Wrench className="w-3 h-3" /> Fix & Retry (Remove Set/Number)
+                {fixing ? (
+                  <>
+                    <svg className="animate-spin h-3 w-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Fixing...
+                  </>
+                ) : (
+                  <>
+                    <Wrench className="w-3 h-3" /> Fix & Retry (Remove Set/Number)
+                  </>
+                )}
               </button>
             </div>
           )}
