@@ -1,13 +1,19 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Check, AlertCircle } from 'lucide-react'
+import { X, Check, AlertCircle, AlertTriangle } from 'lucide-react'
 import { setDisclaimerModalCallback } from '@/utils/modalHelpers'
+import { useApp } from '@/contexts/AppContext'
 
 export default function DisclaimerModal() {
+  const { deck } = useApp()
   const [isOpen, setIsOpen] = useState(false)
   const [copyrightChecked, setCopyrightChecked] = useState(false)
   const [bleedChecked, setBleedChecked] = useState(false)
+
+  // Check how many cards don't have bleed
+  const cardsWithoutBleed = deck.filter(card => !card.hasBleed).length
+  const hasBleedIssue = cardsWithoutBleed > 0
 
   useEffect(() => {
     setDisclaimerModalCallback(() => setIsOpen(true))
@@ -81,20 +87,44 @@ export default function DisclaimerModal() {
               </span>
             </label>
           </div>
+
+          {/* Bleed Warning - Only show if cards don't have bleed */}
+          {hasBleedIssue && (
+            <div className="mb-4 p-4 bg-red-50 dark:bg-red-900/20 border-2 border-red-500 dark:border-red-700 rounded-lg">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-red-900 dark:text-red-200 mb-2">
+                    ⚠️ WARNING! Bleed has not been applied to all cards.
+                  </p>
+                  <p className="text-sm text-red-800 dark:text-red-300 mb-2">
+                    {cardsWithoutBleed} of {deck.length} cards are missing bleed. This could affect the sizing of your prints.
+                  </p>
+                  <p className="text-sm font-bold text-red-900 dark:text-red-200">
+                    Are you SURE you want to proceed?
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <button
               onClick={closeModal}
               className="flex-1 px-4 py-3 sm:py-3 text-sm sm:text-base border border-slate-300 dark:border-slate-600 rounded-lg font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 transition-colors touch-manipulation min-h-[48px]"
             >
-              Cancel
+              {hasBleedIssue ? 'Go Back & Fix Bleed' : 'Cancel'}
             </button>
             <button
               onClick={proceedToCheckout}
               disabled={!copyrightChecked || !bleedChecked}
-              className="flex-1 px-3 sm:px-4 py-3 sm:py-3 bg-green-600 hover:bg-green-700 active:bg-green-800 text-white rounded-lg font-bold text-sm sm:text-base shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600 flex items-center justify-center gap-1.5 sm:gap-2 touch-manipulation min-h-[48px]"
+              className={`flex-1 px-3 sm:px-4 py-3 sm:py-3 ${hasBleedIssue
+                  ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                  : 'bg-green-600 hover:bg-green-700 active:bg-green-800'
+                } text-white rounded-lg font-bold text-sm sm:text-base shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600 flex items-center justify-center gap-1.5 sm:gap-2 touch-manipulation min-h-[48px]`}
             >
               <Check className="w-4 h-4 sm:w-4 sm:h-4" />
-              Proceed to Checkout
+              {hasBleedIssue ? 'Proceed Anyway' : 'Proceed to Checkout'}
             </button>
           </div>
         </div>
