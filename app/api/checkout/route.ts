@@ -9,8 +9,8 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 // Initialize Supabase client
 let supabase: ReturnType<typeof createClient> | null = null
-if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY && 
-    !process.env.SUPABASE_URL.includes('your-project')) {
+if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_KEY &&
+  !process.env.SUPABASE_URL.includes('your-project')) {
   supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_KEY
@@ -40,17 +40,17 @@ async function uploadImagesToStorage(
   if (!supabase) {
     throw new Error('Supabase not configured')
   }
-  
+
   const uploadedUrls: string[] = []
   const maskUrls: (string | null)[] = []
   const bucketName = 'order-images'
-  
+
   // Create folder structure: order-images/{orderId}/{timestamp}/{country_postal}/
   const timestamp = Date.now()
-  const addressHash = shippingAddress 
+  const addressHash = shippingAddress
     ? `${shippingAddress.country}_${(shippingAddress.postal_code || 'unknown').replace(/\s+/g, '_')}`
     : 'unknown'
-  
+
   const baseFolderPath = `${orderId}/${timestamp}/${addressHash}`
 
   // Upload each card's front, back, and mask in its own folder
@@ -59,9 +59,9 @@ async function uploadImagesToStorage(
     const card = cardData[cardIndex]
     // Ensure each card gets a unique folder: card-1, card-2, card-3, etc.
     const cardFolder = `${baseFolderPath}/card-${cardIndex + 1}`
-    
+
     console.log(`📁 Processing card ${cardIndex + 1} in folder: ${cardFolder}`)
-    
+
     // Upload front image
     if (card.front && typeof card.front === 'string' && card.front.trim() !== '') {
       try {
@@ -74,9 +74,9 @@ async function uploadImagesToStorage(
           const buffer = base64ToBuffer(card.front)
           const extension = getExtensionFromBase64(card.front)
           const filePath = `${cardFolder}/front.${extension}`
-          
+
           console.log(`📤 Uploading front for card ${cardIndex + 1} to: ${filePath}`)
-          
+
           // Upload to Supabase Storage
           const { data, error } = await supabase.storage
             .from(bucketName)
@@ -84,7 +84,7 @@ async function uploadImagesToStorage(
               contentType: `image/${extension}`,
               upsert: false
             })
-          
+
           if (error) {
             console.error(`❌ Error uploading front image for card ${cardIndex + 1}:`, error)
           } else {
@@ -92,7 +92,7 @@ async function uploadImagesToStorage(
             const { data: urlData } = supabase.storage
               .from(bucketName)
               .getPublicUrl(filePath)
-            
+
             if (urlData?.publicUrl) {
               console.log(`✅ Front uploaded for card ${cardIndex + 1}: ${filePath}`)
               uploadedUrls.push(urlData.publicUrl)
@@ -103,7 +103,7 @@ async function uploadImagesToStorage(
         console.error(`Error processing front image for card ${cardIndex + 1}:`, error)
       }
     }
-    
+
     // Upload back image
     if (card.back && typeof card.back === 'string' && card.back.trim() !== '') {
       try {
@@ -116,9 +116,9 @@ async function uploadImagesToStorage(
           const buffer = base64ToBuffer(card.back)
           const extension = getExtensionFromBase64(card.back)
           const filePath = `${cardFolder}/back.${extension}`
-          
+
           console.log(`📤 Uploading back for card ${cardIndex + 1} to: ${filePath}`)
-          
+
           // Upload to Supabase Storage
           const { data, error } = await supabase.storage
             .from(bucketName)
@@ -126,7 +126,7 @@ async function uploadImagesToStorage(
               contentType: `image/${extension}`,
               upsert: false
             })
-          
+
           if (error) {
             console.error(`❌ Error uploading back image for card ${cardIndex + 1}:`, error)
           } else {
@@ -134,7 +134,7 @@ async function uploadImagesToStorage(
             const { data: urlData } = supabase.storage
               .from(bucketName)
               .getPublicUrl(filePath)
-            
+
             if (urlData?.publicUrl) {
               console.log(`✅ Back uploaded for card ${cardIndex + 1}: ${filePath}`)
               uploadedUrls.push(urlData.publicUrl)
@@ -156,29 +156,29 @@ async function uploadImagesToStorage(
           maskUrls.push(card.silverMask)
         } else {
           console.log(`📤 Uploading mask for card ${cardIndex + 1}...`)
-          
+
           // Verify mask is PNG format (required for transparency)
           const isPNG = card.silverMask.startsWith('data:image/png') || card.silverMask.includes('image/png')
           if (!isPNG) {
             console.warn(`⚠️ Mask for card ${cardIndex + 1} is not PNG format! Expected PNG for transparency.`)
           }
-          
+
           // Convert base64 to buffer - ensure we preserve PNG format
           // Masks should always be PNG to preserve transparency
           const base64Data = card.silverMask.replace(/^data:image\/\w+;base64,/, '')
           const buffer = Buffer.from(base64Data, 'base64')
-          
+
           // Force PNG extension for masks to ensure transparency is preserved
           // Mask file is always named "mask.png" in the card folder
           const extension = 'png'
           const filePath = `${cardFolder}/mask.${extension}` // e.g., "order-123/1234567890/US_12345/card-1/mask.png"
-          
+
           console.log(`📤 Uploading mask for card ${cardIndex + 1} to: ${filePath}`, {
             isPNG,
             bufferSize: buffer.length,
             contentType: 'image/png'
           })
-          
+
           // Upload to Supabase Storage with explicit PNG content type
           const { data, error } = await supabase.storage
             .from(bucketName)
@@ -186,7 +186,7 @@ async function uploadImagesToStorage(
               contentType: 'image/png', // Explicitly set PNG content type to preserve transparency
               upsert: false
             })
-          
+
           if (error) {
             console.error(`❌ Error uploading mask for card ${cardIndex + 1}:`, error)
             maskUrls.push(null)
@@ -195,7 +195,7 @@ async function uploadImagesToStorage(
             const { data: urlData } = supabase.storage
               .from(bucketName)
               .getPublicUrl(filePath)
-            
+
             if (urlData?.publicUrl) {
               console.log(`✅ Mask uploaded for card ${cardIndex + 1}: ${filePath}`)
               maskUrls.push(urlData.publicUrl)
@@ -214,7 +214,7 @@ async function uploadImagesToStorage(
       maskUrls.push(null)
     }
   }
-  
+
   return { uploadedUrls, maskUrls }
 }
 
@@ -233,11 +233,11 @@ const SHIPPING_COSTS = {
 
 // Allowed shipping countries
 const ALLOWED_COUNTRIES = [
-  'US', 'CA', 'MX', 'GB', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE', 
-  'AT', 'CH', 'SE', 'NO', 'DK', 'FI', 'IE', 'PT', 'PL', 'CZ', 
-  'HU', 'RO', 'BG', 'HR', 'SI', 'SK', 'LT', 'LV', 'EE', 'GR', 
-  'CY', 'MT', 'LU', 'AU', 'NZ', 'JP', 'SG', 'HK', 'KR', 'TW', 
-  'MY', 'TH', 'PH', 'ID', 'VN', 'IN', 'AE', 'SA', 'IL', 'TR', 
+  'US', 'CA', 'MX', 'GB', 'DE', 'FR', 'IT', 'ES', 'NL', 'BE',
+  'AT', 'CH', 'SE', 'NO', 'DK', 'FI', 'IE', 'PT', 'PL', 'CZ',
+  'HU', 'RO', 'BG', 'HR', 'SI', 'SK', 'LT', 'LV', 'EE', 'GR',
+  'CY', 'MT', 'LU', 'AU', 'NZ', 'JP', 'SG', 'HK', 'KR', 'TW',
+  'MY', 'TH', 'PH', 'ID', 'VN', 'IN', 'AE', 'SA', 'IL', 'TR',
   'ZA', 'BR', 'AR', 'CL', 'PE', 'CO'
 ]
 
@@ -292,22 +292,22 @@ async function saveOrderToDatabase(orderData: any) {
       payment_status: 'pending',
       metadata: orderData.metadata || {}
     }
-    
+
     // Log finish/effects information for verification
-    const finishInfo = Array.isArray(insertData.card_data) 
+    const finishInfo = Array.isArray(insertData.card_data)
       ? insertData.card_data.map((card: any) => ({
-          finish: card.finish || 'standard',
-          hasSilverMask: !!card.silverMask,
-          hasMaskingColors: Array.isArray(card.maskingColors) && card.maskingColors.length > 0,
-          maskingTolerance: card.maskingTolerance || null
-        }))
+        finish: card.finish || 'standard',
+        hasSilverMask: !!card.silverMask,
+        hasMaskingColors: Array.isArray(card.maskingColors) && card.maskingColors.length > 0,
+        maskingTolerance: card.maskingTolerance || null
+      }))
       : []
-    
+
     // Log a sample of card_data to verify all fields are present
     if (Array.isArray(insertData.card_data) && insertData.card_data.length > 0) {
       console.log('📋 Sample card_data being saved:', JSON.stringify(insertData.card_data[0], null, 2))
     }
-    
+
     console.log('💾 Inserting order data:', {
       stripe_session_id: insertData.stripe_session_id,
       customer_email: insertData.customer_email,
@@ -351,10 +351,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid quantity' }, { status: 400 })
     }
 
-    if (!shippingAddress || !shippingAddress.email || !shippingAddress.name || 
-        !shippingAddress.line1 || !shippingAddress.city || 
-        !shippingAddress.state || !shippingAddress.postal_code || 
-        !shippingAddress.country) {
+    if (!shippingAddress || !shippingAddress.email || !shippingAddress.name ||
+      !shippingAddress.line1 || !shippingAddress.city ||
+      !shippingAddress.state || !shippingAddress.postal_code ||
+      !shippingAddress.country) {
       return NextResponse.json({ error: 'Invalid shipping address' }, { status: 400 })
     }
 
@@ -372,7 +372,7 @@ export async function POST(req: NextRequest) {
     // Calculate pricing
     const pricePerCard = getPricePerCard(quantity)
     const cardsTotal = pricePerCard * quantity
-    
+
     // Calculate finish surcharges from cardData
     let finishSurcharge = 0
     if (cardData && Array.isArray(cardData)) {
@@ -392,7 +392,7 @@ export async function POST(req: NextRequest) {
         }
       })
     }
-    
+
     const shippingCost = getShippingCost(shippingCountry)
     const totalAmount = cardsTotal + finishSurcharge + shippingCost
 
@@ -410,37 +410,37 @@ export async function POST(req: NextRequest) {
     let maskImageUrls: string[] = []
     let allImageUrls: string[] = []
     let processedCardData = cardData || []
-    
+
     // Log incoming cardData to verify finish/effects are present
     if (cardData && cardData.length > 0) {
       console.log('📋 Incoming cardData sample:', JSON.stringify(cardData[0], null, 2))
     }
-    
+
     // Check if images are already uploaded (URLs instead of base64)
-    const imagesAlreadyUploaded = cardImages && cardImages.length > 0 && 
-                                  typeof cardImages[0] === 'string' && 
-                                  cardImages[0].startsWith('http')
-    
+    const imagesAlreadyUploaded = cardImages && cardImages.length > 0 &&
+      typeof cardImages[0] === 'string' &&
+      cardImages[0].startsWith('http')
+
     if (imagesAlreadyUploaded && cardImages && cardImages.length > 0) {
       console.log('✅ Using pre-uploaded image URLs')
       allImageUrls = cardImages
-      
+
       // Extract front, back, and mask URLs from cardData if available
       // URLs are in order: [front1, back1, mask1, front2, back2, mask2, ...]
       if (cardData && cardData.length > 0) {
         processedCardData = cardData.map((card: any, index: number) => {
           // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
           const updatedCard = { ...card }
-          
+
           const frontUrlIndex = index * 3
           const backUrlIndex = index * 3 + 1
           const maskUrlIndex = index * 3 + 2
-          
+
           if (allImageUrls[frontUrlIndex]) {
             updatedCard.frontUrl = allImageUrls[frontUrlIndex]
             frontImageUrls.push(allImageUrls[frontUrlIndex])
           }
-          
+
           if (allImageUrls[backUrlIndex]) {
             updatedCard.backUrl = allImageUrls[backUrlIndex]
             backImageUrls.push(allImageUrls[backUrlIndex])
@@ -451,7 +451,7 @@ export async function POST(req: NextRequest) {
             updatedCard.silverMask = allImageUrls[maskUrlIndex]
             maskImageUrls.push(allImageUrls[maskUrlIndex])
           }
-          
+
           return updatedCard
         })
       }
@@ -463,18 +463,18 @@ export async function POST(req: NextRequest) {
           const frontIndex = index * 3
           const backIndex = index * 3 + 1
           const maskIndex = index * 3 + 2
-          
+
           // Filter out empty strings - only return non-empty values
-          const front = (cardImages && cardImages[frontIndex] && cardImages[frontIndex].trim() !== '') 
-            ? cardImages[frontIndex] 
+          const front = (cardImages && cardImages[frontIndex] && cardImages[frontIndex].trim() !== '')
+            ? cardImages[frontIndex]
             : null
-          const back = (cardImages && cardImages[backIndex] && cardImages[backIndex].trim() !== '') 
-            ? cardImages[backIndex] 
+          const back = (cardImages && cardImages[backIndex] && cardImages[backIndex].trim() !== '')
+            ? cardImages[backIndex]
             : null
-          const mask = (cardImages && cardImages[maskIndex] && cardImages[maskIndex].trim() !== '') 
-            ? cardImages[maskIndex] 
+          const mask = (cardImages && cardImages[maskIndex] && cardImages[maskIndex].trim() !== '')
+            ? cardImages[maskIndex]
             : null
-          
+
           // Log extraction with more detail to debug front/back swap
           console.log(`📋 Card ${index + 1} extraction from cardImages array:`, {
             frontIndex,
@@ -485,21 +485,21 @@ export async function POST(req: NextRequest) {
             mask: mask ? `found (starts with: ${mask.substring(0, 50)}...)` : 'null/empty',
             cardSilverMask: cardData[index]?.silverMask ? 'exists in cardData' : 'null'
           })
-          
+
           return { front, back, mask }
         }
-        
+
         // Prepare card data with front, back, and mask images for upload
         const cardDataForUpload = cardData.map((card: any, index: number) => {
           const { front, back, mask } = extractImages(index)
-          
+
           // Verify we're not swapping front/back - log what we're assigning
           const result = {
             front: front || null,
             back: back || null,
             silverMask: mask || card.silverMask || null // Use mask from array, fallback to card.silverMask
           }
-          
+
           console.log(`📤 Card ${index + 1} prepared for upload:`, {
             hasFront: !!result.front,
             hasBack: !!result.back,
@@ -508,17 +508,17 @@ export async function POST(req: NextRequest) {
             backType: result.back ? (result.back.startsWith('data:image') ? 'base64' : 'URL') : 'null',
             maskType: result.silverMask ? (result.silverMask.startsWith('data:image') ? 'base64' : 'URL') : 'null'
           })
-          
+
           return result
         })
-        
+
         // Upload images organized by card (each card gets its own folder)
         const uploadResult = await uploadImagesToStorage(
           cardDataForUpload,
           tempOrderId,
           shippingAddress
         )
-        
+
         // Combine uploadedUrls (fronts + backs) with maskUrls in correct order
         // uploadedUrls contains: [front1, back1, front2, back2, ...]
         // maskUrls contains: [mask1, mask2, ...]
@@ -527,7 +527,7 @@ export async function POST(req: NextRequest) {
         for (let i = 0; i < cardData.length; i++) {
           const frontIndex = i * 2
           const backIndex = i * 2 + 1
-          
+
           if (uploadResult.uploadedUrls[frontIndex]) {
             allImageUrls.push(uploadResult.uploadedUrls[frontIndex])
           }
@@ -539,22 +539,22 @@ export async function POST(req: NextRequest) {
             allImageUrls.push(maskUrl)
           }
         }
-        
+
         // Extract front, back, and mask URLs from the combined array
         if (allImageUrls.length > 0) {
           processedCardData = cardData.map((card: any, index: number) => {
             // Preserve all card data including finish/effects (finish, silverMask, maskingColors, etc.)
             const updatedCard = { ...card }
-            
+
             const frontUrlIndex = index * 3
             const backUrlIndex = index * 3 + 1
             const maskUrlIndex = index * 3 + 2
-            
+
             if (allImageUrls[frontUrlIndex]) {
               updatedCard.frontUrl = allImageUrls[frontUrlIndex]
               frontImageUrls.push(allImageUrls[frontUrlIndex])
             }
-            
+
             if (allImageUrls[backUrlIndex]) {
               updatedCard.backUrl = allImageUrls[backUrlIndex]
               backImageUrls.push(allImageUrls[backUrlIndex])
@@ -566,10 +566,10 @@ export async function POST(req: NextRequest) {
               updatedCard.silverMask = allImageUrls[maskUrlIndex]
               maskImageUrls.push(allImageUrls[maskUrlIndex])
             }
-            
+
             return updatedCard
           })
-          
+
           console.log(`✅ Uploaded ${allImageUrls.length} images (fronts, backs, masks) to storage`)
         }
       } catch (uploadError: any) {
@@ -579,9 +579,9 @@ export async function POST(req: NextRequest) {
     }
 
     // Get origin for success/cancel URLs
-    const origin = req.headers.get('origin') || 
-                   req.headers.get('referer')?.split('/').slice(0, 3).join('/') ||
-                   'http://localhost:3000'
+    const origin = req.headers.get('origin') ||
+      req.headers.get('referer')?.split('/').slice(0, 3).join('/') ||
+      'http://localhost:3000'
 
     // Prepare metadata
     const metadata: Record<string, string> = {
@@ -637,8 +637,8 @@ export async function POST(req: NextRequest) {
         currency: 'usd',
         product_data: {
           name: 'Shipping',
-          description: shippingCountry === 'US' 
-            ? 'Standard Shipping (US)' 
+          description: shippingCountry === 'US'
+            ? 'Standard Shipping (US)'
             : 'International Shipping'
         },
         unit_amount: shippingCostCents,
@@ -656,6 +656,10 @@ export async function POST(req: NextRequest) {
       customer_email: shippingAddress.email,
       shipping_address_collection: {
         allowed_countries: ALLOWED_COUNTRIES as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[],
+      },
+      // Enable automatic tax calculation based on customer location
+      automatic_tax: {
+        enabled: true,
       },
       metadata: metadata
     })
@@ -686,7 +690,7 @@ export async function POST(req: NextRequest) {
           shippingCostCents: shippingCostCents,
           shippingCountry: shippingCountry,
           card_images: allImageUrls.length > 0 ? allImageUrls : (cardImages || []),
-          card_images_base64: processedCardData.length > 0 
+          card_images_base64: processedCardData.length > 0
             ? processedCardData.flatMap((card: any) => [card.front, card.back].filter(Boolean))
             : (cardImages || []),
           card_data: processedCardData,
@@ -723,8 +727,8 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('❌ Checkout error:', error)
-    
-    return NextResponse.json({ 
+
+    return NextResponse.json({
       error: 'Failed to create checkout session',
       message: error.message
     }, { status: 500 })
