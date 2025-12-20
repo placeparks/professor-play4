@@ -340,6 +340,8 @@ export default function Sidebar() {
   )
 }
 
+// ... (imports remain the same, relying on existing file content being kept if not replaced. I will target the PrintPrepPanel component specifically)
+
 function PrintPrepPanel() {
   const { currentStep, deck, currentCardIndex, setDeck, globalBack, setGlobalBack } = useApp()
   const [trimMm, setTrimMm] = useState(2.5)
@@ -347,6 +349,10 @@ function PrintPrepPanel() {
   const [hasBleed, setHasBleed] = useState(false)
   const [isApplied, setIsApplied] = useState(false) // Persistent state for button
   const [showNotificationBanner, setShowNotificationBanner] = useState(false) // Temporary banner
+
+  // Progress Bar State
+  const [prepProcessing, setPrepProcessing] = useState(false)
+  const [prepProcessingPercent, setPrepProcessingPercent] = useState(0)
 
   const target = currentStep === 2 ? globalBack : deck[currentCardIndex]
 
@@ -513,14 +519,22 @@ function PrintPrepPanel() {
   const applyPrepToAll = async () => {
     if (deck.length === 0) return
 
+    setPrepProcessing(true)
+    setPrepProcessingPercent(0)
+
     // Capture current state values at the time of execution
-    // These should be the latest values when the button is clicked
     const currentTrim = trimMm
     const currentBleed = bleedMm
     const currentHasBleed = hasBleed
+    const total = deck.length
+    let completed = 0
 
-    // Process all cards in parallel
-    const promises = deck.map(async (card) => {
+    // Process in chunks to allow UI updates and avoid freezing
+    const BATCH_SIZE = 5
+    const updatedDeck = new Array(total)
+
+    // Helper to process a single card
+    const processCard = async (card: any, index: number) => {
       const updatedCard = {
         ...card,
         trimMm: currentTrim,
@@ -529,34 +543,58 @@ function PrintPrepPanel() {
       }
 
       const pFront = card.originalFront ? new Promise<string | null>((resolve) => {
-        processImage(card.originalFront!, currentTrim, currentBleed, currentHasBleed, resolve)
+        processImage(card.originalFront!, currentTrim, currentBleed, currentHasBleed, (res) => {
+          resolve(res)
+        })
       }) : Promise.resolve(null)
 
       const pBack = card.originalBack ? new Promise<string | null>((resolve) => {
-        processImage(card.originalBack!, currentTrim, currentBleed, currentHasBleed, resolve)
+        processImage(card.originalBack!, currentTrim, currentBleed, currentHasBleed, (res) => {
+          resolve(res)
+        })
       }) : Promise.resolve(null)
 
       const [processedFront, processedBack] = await Promise.all([pFront, pBack])
 
-      return {
+      updatedDeck[index] = {
         ...updatedCard,
         front: processedFront || card.front,
         back: processedBack || card.back
       }
-    })
+    }
 
     try {
-      const updatedDeck = await Promise.all(promises)
+      // Create chunks
+      const chunks = []
+      for (let i = 0; i < total; i += BATCH_SIZE) {
+        chunks.push(deck.slice(i, i + BATCH_SIZE).map((card, offset) => ({ card, index: i + offset })))
+      }
+
+      for (const chunk of chunks) {
+        // Process chunk in parallel
+        await Promise.all(chunk.map(item => processCard(item.card, item.index)))
+
+        completed += chunk.length
+        setPrepProcessingPercent(Math.round((completed / total) * 100))
+
+        // Yield to event loop to allow UI to repaint
+        await new Promise(resolve => setTimeout(resolve, 10))
+      }
+
       setDeck(updatedDeck)
-      // Set applied state to true (persists until changes)
       setIsApplied(true)
-      // Show temporary notification banner
       setShowNotificationBanner(true)
       setTimeout(() => {
         setShowNotificationBanner(false)
-      }, 3000) // Hide banner after 3 seconds
+      }, 3000)
     } catch (error) {
       console.error('Error applying prep settings to all cards:', error)
+    } finally {
+      // Small delay before hiding progress bar so user sees 100%
+      setTimeout(() => {
+        setPrepProcessing(false)
+        setPrepProcessingPercent(0)
+      }, 500)
     }
   }
 
@@ -690,23 +728,41 @@ function PrintPrepPanel() {
         </div>
 
         <div className="pt-2 border-t border-slate-200 dark:border-slate-700 mt-2">
-          <button
-            onClick={applyPrepToAll}
-            className="w-full bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm"
-          >
-            {isApplied ? (
-              <>
-                <CheckCircle className="w-3 h-3" /> Applied
-              </>
-            ) : (
-              <>
-                <Copy className="w-3 h-3" /> Apply to All Cards
-              </>
-            )}
-          </button>
-          <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-1">
-            Copies current trim/bleed settings to entire deck
-          </p>
+          {prepProcessing ? (
+            <div className="w-full bg-blue-100 dark:bg-blue-900/30 rounded-md p-2">
+              <div className="flex justify-between text-xs font-bold text-blue-700 dark:text-blue-400 mb-1">
+                <span>Applying...</span>
+                <span>{prepProcessingPercent}%</span>
+              </div>
+              <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2 overflow-hidden">
+                <div
+                  className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${prepProcessingPercent}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={applyPrepToAll}
+                disabled={deck.length === 0}
+                className="w-full bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 text-blue-700 dark:text-blue-400 py-2 rounded-md text-xs font-bold transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isApplied ? (
+                  <>
+                    <CheckCircle className="w-3 h-3" /> Applied
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3 h-3" /> Apply to All Cards
+                  </>
+                )}
+              </button>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 text-center mt-1">
+                Copies current trim/bleed settings to entire deck
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
