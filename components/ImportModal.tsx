@@ -5,6 +5,7 @@ import { X, List, DownloadCloud, AlertTriangle, XCircle, Wrench } from 'lucide-r
 import { useApp } from '@/contexts/AppContext'
 import { setImportModalCallback } from '@/utils/modalHelpers'
 import { processCardList, CardRequest } from '@/utils/scryfallImport'
+import { fetchFlavorNameMap } from '@/utils/flavorUtils'
 
 export default function ImportModal() {
   const [isOpen, setIsOpen] = useState(false)
@@ -66,16 +67,36 @@ export default function ImportModal() {
     }
   }
 
-  const fixAndRetry = () => {
+  const fixAndRetry = async () => {
+    setStatus('Fetching flavor name database...')
+    setProcessing(true)
+
+    // Fetch flavor map only when needed to save bandwidth on initial load
+    const flavorMap = await fetchFlavorNameMap()
+
+    setStatus('Fixing list...')
+
     // Build fixed lines from the stored failed requests (not from error display strings)
     const fixedLines = lastFailedRequests.current.map(req => {
       // Strip set codes and collector numbers from the name, keep just card name + qty
       let cleanName = req.identifier.name || req.originalLine
-      // Remove (Set) Number or [Set] Number patterns
+
+      // 1. Remove (Set) Number or [Set] Number patterns
       cleanName = cleanName.replace(/\s+[\(\[].*?[\)\]]\s+\S+$/, '')
       cleanName = cleanName.replace(/\s+[\(\[].*?[\)\]]$/, '')
       cleanName = cleanName.replace(/\s+\d{3,}$/, '')
+
+      // 2. Remove trailing 'F' (and surrounding whitespace) - Fix for user issue
+      // Matches "Name F" or "NameF" at the end of the string
+      cleanName = cleanName.replace(/\s*F$/, '')
+
       cleanName = cleanName.trim()
+
+      // 3. Check for Flavor Name match
+      const lowerName = cleanName.toLowerCase()
+      if (flavorMap[lowerName]) {
+        cleanName = flavorMap[lowerName]
+      }
 
       return `${req.qty} ${cleanName}`
     })
@@ -84,6 +105,7 @@ export default function ImportModal() {
     setImportText(fixedText)
     setErrors([])
     setStatus('')
+    // setProcessing(false) // handleImport sets this to true, but we are about to call it.
 
     // Call handleImport with the fixed text directly to avoid async state issue
     handleImport(fixedText)
