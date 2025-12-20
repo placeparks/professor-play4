@@ -81,6 +81,9 @@ export default function ImportModal() {
       // Strip set codes and collector numbers from the name, keep just card name + qty
       let cleanName = req.identifier.name || req.originalLine
 
+      // 0. Remove *F* markers (common in some export formats for Foil) - FIRST
+      cleanName = cleanName.replace(/\*F\*/gi, '')
+
       // 1. Remove (Set) Number or [Set] Number patterns
       cleanName = cleanName.replace(/\s+[\(\[].*?[\)\]]\s+\S+$/, '')
       cleanName = cleanName.replace(/\s+[\(\[].*?[\)\]]$/, '')
