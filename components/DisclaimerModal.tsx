@@ -17,6 +17,8 @@ export default function DisclaimerModal() {
 
   useEffect(() => {
     setDisclaimerModalCallback(() => setIsOpen(true))
+      // Also attach to window for compatibility with DesignStepper
+      ; (window as any).openDisclaimerModal = () => setIsOpen(true)
   }, [])
 
   const closeModal = () => {
@@ -119,8 +121,8 @@ export default function DisclaimerModal() {
               onClick={proceedToCheckout}
               disabled={!copyrightChecked || !bleedChecked}
               className={`flex-1 px-3 sm:px-4 py-3 sm:py-3 ${hasBleedIssue
-                  ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
-                  : 'bg-green-600 hover:bg-green-700 active:bg-green-800'
+                ? 'bg-red-600 hover:bg-red-700 active:bg-red-800'
+                : 'bg-green-600 hover:bg-green-700 active:bg-green-800'
                 } text-white rounded-lg font-bold text-sm sm:text-base shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-green-600 flex items-center justify-center gap-1.5 sm:gap-2 touch-manipulation min-h-[48px]`}
             >
               <Check className="w-4 h-4 sm:w-4 sm:h-4" />
