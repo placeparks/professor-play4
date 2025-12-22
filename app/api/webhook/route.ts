@@ -2,17 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createClient } from '@supabase/supabase-js'
 
-// Disable body parsing for webhook route to get raw body
+// Next.js App Router configuration
+// Runtime: nodejs is required for Stripe webhook verification
+// Dynamic: force-dynamic ensures the route is not statically optimized
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-// This is critical for Stripe webhook signature verification
-// Next.js App Router needs this to prevent body parsing
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-}
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
