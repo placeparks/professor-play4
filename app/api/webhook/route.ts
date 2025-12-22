@@ -6,6 +6,14 @@ import { createClient } from '@supabase/supabase-js'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// This is critical for Stripe webhook signature verification
+// Next.js App Router needs this to prevent body parsing
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+}
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: '2023-10-16',
 })
@@ -108,17 +116,17 @@ export async function POST(req: NextRequest) {
   // Get raw body as text for Stripe signature verification
   const body = await req.text()
   const sig = req.headers.get('stripe-signature')
-  
+
   if (!sig) {
     return NextResponse.json({ error: 'Missing Stripe signature' }, { status: 400 })
   }
-  
+
   if (!process.env.STRIPE_WEBHOOK_SECRET) {
     return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 })
   }
 
   let event: Stripe.Event
-  
+
   try {
     event = stripe.webhooks.constructEvent(
       body,
@@ -141,15 +149,15 @@ export async function POST(req: NextRequest) {
         console.error('Error updating order:', error)
       }
       break
-    
+
     case 'payment_intent.succeeded':
       // Payment intent success is already handled by checkout.session.completed
       break
-    
+
     case 'payment_intent.payment_failed':
       console.warn('Payment failed:', event.data.object)
       break
-    
+
     default:
       console.log(`Unhandled event type: ${event.type}`)
   }
